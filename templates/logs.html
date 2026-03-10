@@ -35,23 +35,23 @@
             </td>
             <td>
               {% if log.action == 'login' %}
-                <span style="color: #10b981;">🔓 Login</span>
+                <span style="color: #10b981;">Login</span>
               {% elif log.action == 'logout' %}
-                <span style="color: #f59e0b;">🔒 Logout</span>
+                <span style="color: #f59e0b;">Logout</span>
               {% elif log.action == 'tab_add' %}
-                <span style="color: #3b82f6;">➕ Adicionar Aba</span>
+                <span style="color: #3b82f6;">Adicionar Aba</span>
               {% elif log.action == 'tab_edit' %}
-                <span style="color: #8b5cf6;">✏️ Editar Aba</span>
+                <span style="color: #8b5cf6;">Editar Aba</span>
               {% elif log.action == 'tab_delete' %}
-                <span style="color: #ef4444;">🗑️ Remover Aba</span>
+                <span style="color: #ef4444;">Remover Aba</span>
               {% elif log.action == 'tab_toggle' %}
-                <span style="color: #6366f1;">🔄 Ativar/Desativar</span>
+                <span style="color: #6366f1;">Ativar/Desativar</span>
               {% elif log.action == 'user_add' %}
-                <span style="color: #14b8a6;">👤 Criar Usuário</span>
+                <span style="color: #14b8a6;">Criar Usuário</span>
               {% elif log.action == 'user_delete' %}
-                <span style="color: #ef4444;">👥 Remover Usuário</span>
+                <span style="color: #ef4444;">Remover Usuário</span>
               {% elif log.action == 'kiosk_heartbeat' %}
-                <span style="color: #06b6d4;">💓 Kiosk Status</span>
+                <span style="color: #06b6d4;">Kiosk Status</span>
               {% else %}
                 <span style="color: #6b7280;">{{ log.action }}</span>
               {% endif %}

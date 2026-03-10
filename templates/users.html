@@ -66,9 +66,15 @@
               {% endif %}
             </td>
             <td>
-              <span style="background: {% if user.role == 'admin' %}var(--purple){% else %}#6b7280{% endif %}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+              {% if user.role == 'admin' %}
+              <span style="background: var(--purple); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
                 {{ user.role|title }}
               </span>
+            {% else %}
+              <span style="background: #6b7280; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                {{ user.role|title }}
+              </span>
+            {% endif %}
             </td>
             <td>{{ user.created_at }}</td>
             <td>

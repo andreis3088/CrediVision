@@ -40,11 +40,11 @@
           <td><strong>{{ tab.name }}</strong></td>
           <td>
             {% if tab.content_type == 'image' %}
-              <span style="color: #10b981;">🖼️ Imagem</span>
+              <span style="color: #10b981;">Imagem</span>
             {% elif tab.content_type == 'video' %}
-              <span style="color: #f59e0b;">🎥 Vídeo</span>
+              <span style="color: #f59e0b;">Vídeo</span>
             {% else %}
-              <span style="color: #3b82f6;">🌐 URL</span>
+              <span style="color: #3b82f6;">URL</span>
             {% endif %}
           </td>
           <td class="url-cell" title="{{ tab.url }}">
@@ -73,14 +73,14 @@
           <td style="text-align:right;">
             <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
               <button class="btn btn-ghost btn-sm btn-icon"
-                onclick="openEdit({{ tab.id }}, '{{ tab.name|e }}', '{{ tab.url|e }}', {{ tab.duration }})"
+                onclick="openEdit('{{ tab.id }}', '{{ tab.name|e }}', '{{ tab.url|e }}', '{{ tab.duration }}')"
                 title="Editar">
                 <i class="bi bi-pencil"></i>
               </button>
               
               {% if tab.content_type in ['image', 'video'] and tab.file_path %}
               <button class="btn btn-ghost btn-sm btn-icon"
-                onclick="deleteFileOnly({{ tab.id }}, '{{ tab.name|e }}')"
+                onclick="deleteFileOnly('{{ tab.id }}', '{{ tab.name|e }}')"
                 title="Excluir Apenas o Arquivo">
                 <i class="bi bi-file-earmark-x"></i>
               </button>
@@ -93,7 +93,7 @@
               </form>
               
               <form method="POST" action="{{ url_for('tab_delete', tab_id=tab.id) }}" style="display:inline;"
-                onsubmit="return confirmDelete('{{ tab.name|e }}', {% if tab.file_path %}true{% else %}false{% endif %})">
+                onsubmit="return confirmDelete('{{ tab.name|e }}', '{% if tab.file_path %}true{% else %}false{% endif %}')">
                 <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">
                   <i class="bi bi-trash3"></i>
                 </button>
@@ -255,7 +255,7 @@ function confirmDelete(tabName, hasFile) {
   let message = `Tem certeza que deseja remover a aba "${tabName}"?`;
   
   if (hasFile) {
-    message += '\n\n⚠️ ATENÇÃO: O arquivo associado também será excluído permanentemente!';
+    message += '\n\nATENÇÃO: O arquivo associado também será excluído permanentemente!';
   }
   
   return confirm(message);

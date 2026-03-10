@@ -107,9 +107,9 @@
 </head>
 <body>
   <div class="kiosk-container">
-    <div class="kiosk-logo">📺</div>
+    <!--<div class="kiosk-logo">📺</div>-->
     
-    <h1 class="kiosk-title">CrediVision Kiosk</h1>
+    <h1 class="kiosk-title">CrediVision</h1>
     <p class="kiosk-subtitle">Sistema de Exibição Automatizada</p>
     
     <div class="kiosk-status">
@@ -162,10 +162,10 @@
         
         if (data.tabs.length > 0) {
           document.querySelector('.kiosk-info p').innerHTML = 
-            '<strong>Status:</strong> ✅ Sistema operacional';
+            '<strong>Status: </strong>Sistema operacional';
         } else {
           document.querySelector('.kiosk-info p').innerHTML = 
-            '<strong>Status:</strong> ⚠️ Nenhuma aba configurada';
+            '<strong>Status: </strong>Nenhuma aba configurada';
         }
         
         // Display content based on type
@@ -210,7 +210,7 @@
         
       } catch (error) {
         document.querySelector('.kiosk-info p').innerHTML = 
-          '<strong>Status:</strong> ❌ Erro de conexão';
+          '<strong>Status: </strong>Erro de conexão';
       }
     }
     
