@@ -1,232 +1,428 @@
-# 🖥️ Sistema Kiosk — Guia Completo
+# 🖥️ CrediVision - Sistema Kiosk Completo
 
-Sistema de exibição automatizada em modo kiosk para TV, com interface administrativa remota.
-
----
-
-## 📁 Estrutura do Projeto
-
-```
-kiosk-system/
-├── app/
-│   ├── app.py                  # Backend Flask principal
-│   ├── requirements.txt
-│   └── templates/
-│       ├── base.html           # Layout base (sidebar + topbar)
-│       ├── login.html          # Tela de login
-│       ├── dashboard.html      # Dashboard principal
-│       ├── tabs.html           # Gerenciamento de abas
-│       ├── users.html          # Gerenciamento de usuários
-│       ├── logs.html           # Logs de auditoria
-│       └── display.html        # Tela exibida na TV (kiosk)
-├── scripts/
-│   └── kiosk_runner.py         # Automação do Firefox kiosk
-└── docker/
-    ├── Dockerfile
-    ├── docker-compose.yml
-    └── entrypoint.sh
-```
+Sistema de exibição automatizada em modo kiosk para TV, com interface administrativa remota e armazenamento local sem banco de dados.
 
 ---
 
-## 🚀 Início Rápido
+## 🎯 Visão Geral
 
-### Opção A — Docker (Recomendado)
+O CrediVision é um sistema completo para exibição de conteúdo em TVs e monitores, ideal para:
+- 🏢 **Lobbies de empresas** - Informações corporativas
+- 🏪 **Vitrines de lojas** - Promoções e produtos
+- 🏥 **Salas de espera** - Informações de saúde
+- 🎓 **Recepções** - Comunicados e avisos
+- 🏭 **Indústrias** - Painéis de produção
 
+---
+
+## ✅ Funcionalidades Principais
+
+### 📺 **Exibição Kiosk**
+- 🌐 **Sites e URLs** - Iframes responsivos
+- 🖼️ **Imagens** - PNG, JPG, JPEG, GIF (até 100MB)
+- 🎥 **Vídeos** - MP4, AVI, MOV, WEBM (até 100MB)
+- 🔄 **Rotação Automática** - Por duração configurada
+- 🦊 **Firefox Kiosk** - Tela cheia sem bordas
+- ⏱️ **Controle de Tempo** - 10s a 1 hora por aba
+
+### 👥 **Gestão Administrativa**
+- 🔐 **Login Seguro** - Hash SHA-256 + sessões
+- 👑 **Admin/Viewer** - Controle de acesso
+- 📊 **Dashboard** - Estatísticas em tempo real
+- 📋 **Logs Completos** - Auditoria de todas ações
+- 📱 **Acesso Remoto** - De qualquer dispositivo
+
+### 💾 **Armazenamento Local**
+- 🚫 **Sem Banco de Dados** - Zero dependência SQL
+- 📁 **Arquivos JSON** - Configurações em `~/Documents/`
+- 🗑️ **Exclusão Segura** - Remove arquivos do disco
+- 💾 **Backup Simples** - Copiar pasta Documents
+- 🔄 **Persistência Total** - Nada perdido ao reiniciar
+
+### 🚀 **Automação**
+- ⚡ **Boot Automático** - 45s até exibição
+- ⏰ **Delay 30s** - Tela informativa
+- 🐳 **Docker Container** - Isolamento e portabilidade
+- 🔧 **Systemd Services** - Start/stop automático
+- 🛡️ **Recuperação** - Restart em falhas
+
+---
+
+## 🏗️ Estrutura do Projeto
+
+```
+credvision/
+├── 📄 app_no_db.py              # Backend Flask (sem DB)
+├── 📄 app.py                    # Backend Flask (com SQLite)
+├── 📄 requirements.txt          # Dependências Python
+├── 📁 templates/                # Templates HTML
+│   ├── base.html               # Layout base
+│   ├── login.html              # Tela de login
+│   ├── dashboard.html          # Dashboard principal
+│   ├── tabs.html               # Gerenciamento de abas
+│   ├── tabs_files.html         # Com exclusão de arquivos
+│   ├── users.html              # Gestão de usuários
+│   ├── logs.html               # Logs de auditoria
+│   └── display.html            # Tela kiosk
+├── 📁 static/                   # Arquivos estáticos
+├── 📄 docker-compose.yml        # Configuração Docker
+├── 📄 Dockerfile               # Imagem Docker
+└── 📁 scripts/                  # Scripts de instalação
+    ├── setup_ubuntu_kiosk.sh   # Instalação Ubuntu completa
+    ├── create_admin.sh         # Gestão de usuários
+    ├── backup_kiosk.sh         # Backup automático
+    └── diagnose_kiosk.sh       # Diagnóstico
+```
+
+---
+
+## 🚀 Instalação Rápida
+
+### **Ubuntu (Recomendado)**
 ```bash
-# 1. Clone / extraia o projeto
-cd kiosk-system
+# Instalação completa automatizada
+wget https://seu-repo.github.io/setup_ubuntu_kiosk.sh
+sudo bash setup_ubuntu_kiosk.sh
 
-# 2. Configure variáveis de ambiente
-cp .env.example .env
-nano .env   # edite SECRET_KEY e ADMIN_PASSWORD
-
-# 3. Suba os contêineres
-cd docker
-docker compose up -d
-
-# 4. Acesse a interface admin
-# http://<IP_DO_SERVIDOR>:5000
+# Configurar admin após instalação
+sudo bash setup_admin_after_install.sh
 ```
 
-### Opção B — Instalação Direta (Ubuntu)
-
+### **Windows**
 ```bash
-# Instale dependências Python
-pip3 install flask flask-login selenium gunicorn
+# Iniciar sistema
+start_no_db.bat
 
-# Inicie o servidor admin
-cd app
-python3 app.py
+# Configurar admin
+create_admin.bat
+```
 
-# Em outro terminal, inicie o kiosk (com Firefox instalado)
-python3 ../scripts/kiosk_runner.py
+### **Linux/Mac**
+```bash
+# Iniciar sistema
+bash start_no_db.sh
+
+# Configurar admin
+sudo bash create_admin.sh
 ```
 
 ---
 
-## 🔐 Credenciais Padrão
+## 🌐 Acesso ao Sistema
 
-| Usuário | Senha    | Nível  |
-|---------|----------|--------|
-| admin   | admin123 | Admin  |
+### **Interface Administrativa**
+```
+URL: http://IP-DO-SERVIDOR:5000
+Login: admin
+Senha: admin123
+```
 
-> ⚠️ **Troque a senha após o primeiro acesso!**
-
----
-
-## 🎛️ Interface Administrativa
-
-### Rotas disponíveis
-
-| Rota | Descrição | Acesso |
-|------|-----------|--------|
-| `/dashboard` | Visão geral do sistema | Todos |
-| `/tabs` | Gerenciar abas exibidas | Todos |
-| `/users` | Criar/remover usuários | Admin |
-| `/logs` | Histórico de ações | Admin |
-| `/display` | Tela da TV (preview) | Público |
-| `/api/config` | JSON com configuração | Público |
+### **Display Kiosk**
+```
+URL: http://IP-DO-SERVIDOR:5000/display
+Modo: Firefox tela cheia (automático)
+```
 
 ---
 
-## 🎨 Paleta de Cores
+## 📋 Formatos Suportados
 
-| Cor | Hex | Uso |
-|-----|-----|-----|
-| Turquesa | `#00AE9D` | Primária, navbar, botões |
-| Verde Escuro | `#003641` | Background, texto |
-| Branco | `#FFFFFF` | Fundos, texto em contraste |
-| Verde Claro | `#C9D200` | Alertas de sucesso |
-| Verde Médio | `#7DB61C` | Badges ativas |
-| Roxo | `#49479D` | Acento secundário |
+### 🖼️ **Imagens**
+- **Formatos**: PNG, JPG, JPEG, GIF
+- **Tamanho**: Máximo 100MB
+- **Local**: `~/Documents/kiosk-media/imagens/`
+
+### 🎥 **Vídeos**
+- **Formatos**: MP4, AVI, MOV, WEBM
+- **Tamanho**: Máximo 100MB
+- **Local**: `~/Documents/kiosk-media/videos/`
+
+### 🌐 **Sites**
+- **Qualquer URL** acessível via iframe
+- **Dashboards** e sistemas web
+- **Páginas HTML** estáticas
 
 ---
 
-## ⚙️ Variáveis de Ambiente
+## 🔧 Configuração
 
-```env
-SECRET_KEY=chave-secreta-aleatoria-longa
-ADMIN_PASSWORD=sua-senha-segura
-DB_PATH=/data/kiosk.db
+### **Arquivos de Configuração**
+```bash
+# Ubuntu
+/opt/credvision/.env                    # Variáveis de ambiente
+/home/user/Documents/kiosk-data/         # Dados JSON
+/home/user/Documents/kiosk-media/        # Arquivos de mídia
+
+# Windows
+%USERPROFILE%\Documents\kiosk-data\     # Dados JSON
+%USERPROFILE%\Documents\kiosk-media\    # Arquivos de mídia
+```
+
+### **Variáveis de Ambiente (.env)**
+```bash
+SECRET_KEY=sua_chave_secreta
+ADMIN_PASSWORD=admin123
+DATA_FOLDER=/data                       # Docker
+MEDIA_FOLDER=/media                      # Docker
 ADMIN_URL=http://localhost:5000
-KIOSK_MODE=full        # full | admin-only | display-only
-CONFIG_REFRESH=300     # segundos entre refreshes de config
-DISPLAY=:0             # display X11
+KIOSK_MODE=full
+CONFIG_REFRESH=300
+MAX_FILE_SIZE=104857600                 # 100MB
 ```
 
 ---
 
-## 🐋 Docker — Modos de Operação
+## 🎮 Uso do Sistema
 
-### `admin-only`
-Apenas a interface Flask. Ideal para rodar em servidor separado.
+### **1. Configurar Conteúdo**
+1. Acessar: `http://IP:5000`
+2. Login: `admin` / `admin123`
+3. Menu: "Abas / Conteúdo"
+4. Clicar: "Nova Aba"
+5. Escolher: URL ou Upload de arquivo
+6. Configurar: Duração e nome
+7. Salvar: Confirmar criação
 
+### **2. Gerenciar Arquivos**
+- **📤 Upload**: Arrastar e soltar arquivos
+- **🗑️ Excluir Arquivo**: Botão específico (mantém aba)
+- **🗑️ Excluir Aba**: Remove tudo (aba + arquivo)
+- **📊 Visualizar**: Nome e tipo na tabela
+
+### **3. Monitorar Sistema**
+- **📊 Dashboard**: Estatísticas em tempo real
+- **📋 Logs**: Histórico completo de ações
+- **👥 Usuários**: Gerenciar acessos
+- **🔄 Status**: Serviços e sistema
+
+---
+
+## 🔄 Fluxo de Boot
+
+```
+🔌 Ligar PC → 🚀 Ubuntu (15s) → ⏰ Tela 30s → 🐳 Docker → 🌐 Flask → 🦊 Firefox → 📺 Conteúdo
+```
+
+### **Timeline Detalhada:**
+- **0-15s**: Ubuntu boot e systemd
+- **15-45s**: Tela "Aguarde 30 segundos..." (Zenity)
+- **20-40s**: Docker inicia container
+- **30-50s**: Flask app ready
+- **45s**: Firefox abre em modo kiosk
+- **46s+**: Exibição contínua do conteúdo
+
+---
+
+## 💾 Armazenamento e Persistência
+
+### **📁 Estrutura de Arquivos**
+```
+~/Documents/
+├── 📁 kiosk-data/          ← DADOS DO SISTEMA (PERSISTENTE)
+│   ├── 📄 tabs.json       ← Configurações das abas
+│   ├── 👥 users.json      ← Usuários do sistema
+│   └── 📋 logs.json       ← Logs de auditoria
+├── 📁 kiosk-media/         ← ARQUIVOS DE MÍDIA (PERSISTENTE)
+│   ├── 🖼️ imagens/        ← Imagens exibidas
+│   ├── 🎥 videos/         ← Vídeos exibidos
+│   └── 📄 outros/         ← Outros arquivos
+└── 📁 kiosk-backups/       ← BACKUPS AUTOMÁTICOS
+```
+
+### **✅ O que PERSISTE:**
+- 📄 **tabs.json** - Todas as configurações
+- 📁 **kiosk-media/** - Todas as imagens/vídeos
+- 👥 **users.json** - Usuários e permissões
+- 📋 **logs.json** - Histórico completo
+
+### **🔄 O que é Recriado:**
+- 🐳 **Container Docker** - A cada boot
+- 🦊 **Firefox** - Processo do kiosk
+- 📊 **Sessões** - Login do admin
+
+---
+
+## 🛠️ Manutenção
+
+### **Scripts Automáticos**
 ```bash
-KIOSK_MODE=admin-only docker compose up kiosk-admin
+# Backup completo
+sudo /opt/credvision/backup_kiosk.sh
+
+# Diagnóstico do sistema
+sudo /opt/credvision/diagnose_kiosk.sh
+
+# Gerenciar usuários
+sudo /opt/credvision/create_admin.sh
+
+# Configurar admin (pós-instalação)
+sudo /opt/credvision/setup_admin_after_install.sh
 ```
 
-### `display-only`
-Apenas o Firefox kiosk, busca config do admin remoto.
-
+### **Comandos Úteis**
 ```bash
-KIOSK_MODE=display-only ADMIN_URL=http://192.168.1.10:5000 docker compose up kiosk-display
-```
+# Status dos serviços
+sudo systemctl status credvision-app
+sudo systemctl status credvision-kiosk
 
-### `full` (padrão)
-Admin + display na mesma máquina.
+# Logs em tempo real
+sudo journalctl -u credvision-app -f
+
+# Reiniciar serviços
+sudo systemctl restart credvision-app
+sudo systemctl restart credvision-kiosk
+
+# Backup manual
+tar -czf backup-$(date +%Y%m%d).tar.gz \
+  ~/Documents/kiosk-data \
+  ~/Documents/kiosk-media
+```
 
 ---
 
-## 📺 Configuração na TV
+## 🚨 Troubleshooting
 
-### Autostart no Ubuntu (systemd)
+### **Problemas Comuns**
 
-```ini
-# /etc/systemd/system/kiosk.service
-[Unit]
-Description=Sistema Kiosk
-After=network.target docker.service
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/kiosk-system/docker
-ExecStart=docker compose up
-ExecStop=docker compose down
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
+#### **Sistema não inicia**
 ```bash
-sudo systemctl enable kiosk
-sudo systemctl start kiosk
+# Verificar serviços
+sudo systemctl status credvision-app credvision-kiosk
+
+# Verificar Docker
+docker ps
+docker logs credvision-app
+
+# Verificar arquivos
+ls -la ~/Documents/kiosk-data/
+ls -la ~/Documents/kiosk-media/
 ```
 
----
-
-## 🔌 API
-
-### `GET /api/config`
-Retorna as abas ativas em JSON.
-
-```json
-{
-  "tabs": [
-    {"id": 1, "name": "Dashboard", "url": "http://...", "duration": 300}
-  ],
-  "updated_at": "2024-01-15T14:30:00"
-}
-```
-
-### `POST /api/status`
-Recebe heartbeat do kiosk com a aba atual.
-
-```json
-{"current_tab": "Dashboard", "index": 0, "total": 3}
-```
-
----
-
-## 🔧 Manutenção
-
+#### **Firefox não abre**
 ```bash
-# Ver logs
-docker compose logs -f kiosk-admin
+# Verificar display
+echo $DISPLAY
 
-# Backup do banco de dados
-docker cp kiosk-admin:/data/kiosk.db ./backup-$(date +%Y%m%d).db
+# Iniciar manualmente
+DISPLAY=:0 firefox --kiosk http://localhost:5000/display
 
-# Atualizar sem downtime
-docker compose pull && docker compose up -d --no-deps kiosk-admin
+# Verificar Xorg
+ps aux | grep Xorg
+```
+
+#### **Upload falha**
+```bash
+# Verificar espaço
+df -h ~/Documents/
+
+# Verificar permissões
+ls -la ~/Documents/kiosk-media/
+
+# Limpar arquivos antigos
+find ~/Documents/kiosk-media/ -mtime +30 -delete
 ```
 
 ---
 
-## 🔒 Segurança
+## 📊 API Endpoints
 
-- Autenticação com hash SHA-256 + salt
-- Sessões Flask com chave secreta rotacionável
-- RBAC: Admin (acesso total) / Viewer (somente leitura)
-- Logs de auditoria completos (IP, usuário, ação)
-- Para produção: configure HTTPS com nginx reverse proxy
-
-### Exemplo nginx + SSL
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name kiosk.empresa.local;
-
-    ssl_certificate     /etc/ssl/kiosk.crt;
-    ssl_certificate_key /etc/ssl/kiosk.key;
-
-    location / {
-        proxy_pass http://localhost:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+### **Configuração**
+```bash
+GET /api/config
+# Retorna: { "tabs": [...], "updated_at": "..." }
 ```
+
+### **Status**
+```bash
+POST /api/status
+# Envia: { "current_tab": "nome", "index": 0, "total": 3 }
+# Retorna: { "status": "ok", "timestamp": "..." }
+```
+
+### **Mídia**
+```bash
+GET /media/<filename>
+# Serve: Arquivos de imagem/vídeo
+```
+
+---
+
+## 🔐 Segurança
+
+### **Configurações Padrão**
+- 🔐 **Hash SHA-256** para senhas
+- 🕐 **Sessões expiram** em 1 hora
+- 🚫 **Upload validado** - tipos e tamanho
+- 🛡️ **Firewall UFW** - porta 5000 apenas
+- 📋 **Logs completos** - auditoria total
+
+### **Recomendações**
+- 🔑 **Trocar senha** admin padrão
+- 🌐 **HTTPS** em produção
+- 📱 **Acesso restrito** à rede local
+- 💾 **Backups regulares**
+- 🔄 **Atualizações** de segurança
+
+---
+
+## 🎯 Versões Disponíveis
+
+### **🚀 Versão Principal (Recomendada)**
+- **Arquivo**: `app_no_db.py`
+- **Armazenamento**: Arquivos JSON
+- **Vantagens**: Setup rápido, backup simples, portabilidade
+- **Uso**: Pequenas/médias instalações
+
+### **🗄️ Versão com SQLite**
+- **Arquivo**: `app.py`
+- **Armazenamento**: Banco SQLite
+- **Vantagens**: Consultas complexas, escalabilidade
+- **Uso**: Grandes instalações, relatórios
+
+---
+
+## 📞 Suporte
+
+### **Documentação**
+- 📖 **README.md** - Este guia
+- 🎨 **DIAGRAMA_FLUXO.md** - Fluxo visual
+- 📋 **FLUXO_SISTEMA.md** - Explicação detalhada
+
+### **Scripts**
+- 🚀 **setup_ubuntu_kiosk.sh** - Instalação completa
+- 👥 **create_admin.sh** - Gestão de usuários
+- 🔍 **diagnose_kiosk.sh** - Diagnóstico
+- 💾 **backup_kiosk.sh** - Backup
+
+### **Comunidade**
+- 📧 **Email**: suporte@credvision.com
+- 💬 **Telegram**: @credvision-support
+- 🌐 **Web**: https://credvision.com/support
+
+---
+
+## 🎊 Benefícios
+
+### **Para o Negócio**
+- 📈 **Profissionalismo** - Exibição automatizada
+- 💰 **Economia** - Sem papel nem impressão
+- 🔄 **Atualização** - Conteúdo em tempo real
+- 📊 **Controle** - Gestão centralizada
+
+### **Para o TI**
+- ⚡ **Setup rápido** - Instalação automatizada
+- 🛡️ **Segurança** - Controle de acesso
+- 💾 **Backup simples** - Copiar pasta
+- 🔧 **Manutenção** - Scripts automatizados
+
+### **Para o Usuário**
+- 📱 **Acesso remoto** - Gerenciar de qualquer lugar
+- 🎨 **Interface intuitiva** - Fácil uso
+- 📺 **Exibição profissional** - Sem intervenção manual
+- 🔄 **Conteúdo dinâmico** - Vários formatos
+
+---
+
+**🎉 CrediVision - Sistema Kiosk Completo e Profissional!**
+
+*Transforme qualquer TV em um painel informativo automatizado.*
