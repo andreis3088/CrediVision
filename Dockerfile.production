@@ -19,7 +19,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application files
 COPY app_no_db.py .
 COPY templates/ templates/
-COPY static/ static/
 
 # Create data and media directories
 RUN mkdir -p /data /media
