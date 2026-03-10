@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background: #00AE9D; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #008f81; }
+        #fileGroup { display: none; }
+        .small { font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Upload de Arquivo</h1>
+    
+    <form>
+        <div class="form-group">
+            <label>Nome da Aba</label>
+            <input type="text" placeholder="ex: Painel de Vendas" required/>
+        </div>
+        
+        <div class="form-group">
+            <label>Tipo de Conteúdo</label>
+            <select id="contentType" onchange="toggleContentType()">
+                <option value="url">URL (Site)</option>
+                <option value="file">Arquivo (Imagem/Vídeo)</option>
+            </select>
+        </div>
+        
+        <div class="form-group" id="urlGroup">
+            <label>URL</label>
+            <input type="url" id="urlInput" placeholder="https://..." required/>
+        </div>
+        
+        <div class="form-group" id="fileGroup">
+            <label>Arquivo</label>
+            <input type="file" id="fileInput" accept="image/*,video*"/>
+            <div class="small">Formatos aceitos: PNG, JPG, JPEG, GIF, MP4, AVI, MOV, WEBM (máx. 100MB)</div>
+        </div>
+        
+        <div class="form-group">
+            <label>Duração (segundos)</label>
+            <input type="number" value="300" min="10" max="3600"/>
+            <div class="small">300s = 5 minutos</div>
+        </div>
+        
+        <button type="button" onclick="testSubmit()">Testar</button>
+    </form>
+    
+    <div id="result" style="margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 4px;"></div>
+    
+    <script>
+        function toggleContentType() {
+            const contentType = document.getElementById('contentType').value;
+            const urlGroup = document.getElementById('urlGroup');
+            const fileGroup = document.getElementById('fileGroup');
+            const urlInput = document.getElementById('urlInput');
+            const fileInput = document.getElementById('fileInput');
+            
+            console.log('Tipo selecionado:', contentType);
+            
+            if (contentType === 'file') {
+                urlGroup.style.display = 'none';
+                fileGroup.style.display = 'block';
+                urlInput.removeAttribute('required');
+                fileInput.setAttribute('required', 'required');
+                console.log('Modo arquivo ativado');
+            } else {
+                urlGroup.style.display = 'block';
+                fileGroup.style.display = 'none';
+                urlInput.setAttribute('required', 'required');
+                fileInput.removeAttribute('required');
+                console.log('Modo URL ativado');
+            }
+        }
+        
+        function testSubmit() {
+            const contentType = document.getElementById('contentType').value;
+            const urlInput = document.getElementById('urlInput').value;
+            const fileInput = document.getElementById('fileInput').files[0];
+            
+            let result = '<h3>Resultado do Teste:</h3>';
+            result += '<p><strong>Tipo:</strong> ' + contentType + '</p>';
+            
+            if (contentType === 'url') {
+                result += '<p><strong>URL:</strong> ' + urlInput + '</p>';
+            } else {
+                result += '<p><strong>Arquivo:</strong> ' + (fileInput ? fileInput.name : 'Nenhum arquivo selecionado') + '</p>';
+                result += '<p><strong>Tamanho:</strong> ' + (fileInput ? (fileInput.size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A') + '</p>';
+            }
+            
+            document.getElementById('result').innerHTML = result;
+        }
+        
+        // Teste inicial
+        console.log('Página carregada');
+        toggleContentType();
+    </script>
+</body>
+</html>

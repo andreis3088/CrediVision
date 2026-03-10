@@ -1,0 +1,260 @@
+{% extends 'base.html' %}
+{% block title %}Abas{% endblock %}
+{% block page_title %}Abas / Conteúdo{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+  <p style="color:#6b8a8a; font-size:14px;">
+    Gerencie as páginas exibidas no kiosk. Arraste para reordenar.
+  </p>
+  {% if session.role == 'admin' %}
+  <button class="btn btn-primary" onclick="openModal('modal-add')">
+    <i class="bi bi-plus-lg"></i> Nova Aba
+  </button>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><i class="bi bi-window-stack"></i> Lista de Abas</div>
+    <span style="font-size:13px;color:#6b8a8a;">{{ tabs|length }} abas cadastradas</span>
+  </div>
+  <div class="table-wrapper">
+    <table id="tabs-table">
+      <thead>
+        <tr>
+          <th style="width:32px;"></th>
+          <th>Nome</th>
+          <th>Tipo</th>
+          <th>URL/Arquivo</th>
+          <th>Duração</th>
+          <th>Status</th>
+          {% if session.role == 'admin' %}<th style="text-align:right;">Ações</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody id="sortable-body">
+        {% for tab in tabs %}
+        <tr data-id="{{ tab.id }}">
+          <td><span class="drag-handle"><i class="bi bi-grip-vertical"></i></span></td>
+          <td><strong>{{ tab.name }}</strong></td>
+          <td>
+            {% if tab.content_type == 'image' %}
+              <span style="color: #10b981;">🖼️ Imagem</span>
+            {% elif tab.content_type == 'video' %}
+              <span style="color: #f59e0b;">🎥 Vídeo</span>
+            {% else %}
+              <span style="color: #3b82f6;">🌐 URL</span>
+            {% endif %}
+          </td>
+          <td class="url-cell" title="{{ tab.url }}">
+            {% if tab.content_type in ['image', 'video'] %}
+              <code>{{ tab.url.replace('/media/', '') }}</code>
+            {% else %}
+              <code>{{ tab.url }}</code>
+            {% endif %}
+          </td>
+          <td style="font-variant-numeric:tabular-nums; white-space:nowrap;">
+            {{ (tab.duration // 60) }}min {{ (tab.duration % 60) }}s
+          </td>
+          <td>
+            {% if tab.active %}
+            <span class="badge badge-active"><i class="bi bi-circle-fill" style="font-size:7px;"></i> Ativo</span>
+            {% else %}
+            <span class="badge badge-inactive">Inativo</span>
+            {% endif %}
+          </td>
+          {% if session.role == 'admin' %}
+          <td style="text-align:right;">
+            <div style="display:flex;gap:6px;justify-content:flex-end;">
+              <button class="btn btn-ghost btn-sm btn-icon"
+                onclick="openEdit({{ tab.id }}, '{{ tab.name|e }}', '{{ tab.url|e }}', {{ tab.duration }})"
+                title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form method="POST" action="{{ url_for('tab_toggle', tab_id=tab.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-sm {% if tab.active %}btn-lime{% else %}btn-ghost{% endif %}" title="Ativar/Desativar">
+                  <i class="bi bi-{% if tab.active %}pause-fill{% else %}play-fill{% endif %}"></i>
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('tab_delete', tab_id=tab.id) }}" style="display:inline;"
+                onsubmit="return confirm('Remover aba {{ tab.name|e }}?')">
+                <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:48px;color:#aaa;">
+            <div style="font-size:36px;margin-bottom:12px;">📭</div>
+            Nenhuma aba cadastrada ainda.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if session.role == 'admin' %}
+
+<!-- Modal: Adicionar -->
+<div class="modal-overlay" id="modal-add">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-plus-circle" style="color:#00AE9D;"></i> Nova Aba</h3>
+      <button class="modal-close" onclick="closeModal('modal-add')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form method="POST" action="{{ url_for('tab_add') }}" enctype="multipart/form-data">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome da Aba</label>
+          <input type="text" name="name" class="form-control" placeholder="ex: Painel de Vendas" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Conteúdo</label>
+          <select name="content_type" id="contentType" class="form-control" onchange="toggleContentType()">
+            <option value="url">URL (Site)</option>
+            <option value="file">Arquivo (Imagem/Vídeo)</option>
+          </select>
+        </div>
+        <div class="form-group" id="urlGroup">
+          <label class="form-label">URL</label>
+          <input type="url" name="url" id="urlInput" class="form-control" placeholder="https://..." required/>
+        </div>
+        <div class="form-group" id="fileGroup" style="display: none;">
+          <label class="form-label">Arquivo</label>
+          <input type="file" name="file" id="fileInput" class="form-control" accept="image/*,video/*"/>
+          <small style="color:#6b8a8a;font-size:12px;margin-top:4px;display:block;">
+            Formatos aceitos: PNG, JPG, JPEG, GIF, MP4, AVI, MOV, WEBM (máx. 100MB)
+          </small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duração (segundos)</label>
+          <input type="number" name="duration" class="form-control" value="300" min="10" max="3600"/>
+          <small style="color:#6b8a8a;font-size:12px;margin-top:4px;display:block;">300s = 5 minutos</small>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-add')">Cancelar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Adicionar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Editar -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-pencil-square" style="color:#00AE9D;"></i> Editar Aba</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form method="POST" id="form-edit">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome da Aba</label>
+          <input type="text" name="name" id="edit-name" class="form-control" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL</label>
+          <input type="url" name="url" id="edit-url" class="form-control" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duração (segundos)</label>
+          <input type="number" name="duration" id="edit-duration" class="form-control" min="10" max="3600"/>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Debug - verificar se o script está carregando
+console.log('Tabs script carregado!');
+
+function toggleContentType() {
+  console.log('toggleContentType() chamada');
+  const contentType = document.getElementById('contentType').value;
+  const urlGroup = document.getElementById('urlGroup');
+  const fileGroup = document.getElementById('fileGroup');
+  const urlInput = document.getElementById('urlInput');
+  const fileInput = document.getElementById('fileInput');
+  
+  console.log('Tipo:', contentType);
+  console.log('URL Group:', urlGroup);
+  console.log('File Group:', fileGroup);
+  
+  if (contentType === 'file') {
+    urlGroup.style.display = 'none';
+    fileGroup.style.display = 'block';
+    urlInput.removeAttribute('required');
+    fileInput.setAttribute('required', 'required');
+    console.log('Modo arquivo ativado');
+  } else {
+    urlGroup.style.display = 'block';
+    fileGroup.style.display = 'none';
+    urlInput.setAttribute('required', 'required');
+    fileInput.removeAttribute('required');
+    console.log('Modo URL ativado');
+  }
+}
+
+// Inicializar quando o modal abrir
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM carregado');
+  
+  // Adicionar listener para quando o modal abrir
+  const modalAdd = document.getElementById('modal-add');
+  if (modalAdd) {
+    modalAdd.addEventListener('shown', function() {
+      console.log('Modal aberto');
+      toggleContentType(); // Garantir estado inicial
+    });
+  }
+});
+
+function openEdit(id, name, url, duration) {
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-url').value = url;
+  document.getElementById('edit-duration').value = duration;
+  document.getElementById('form-edit').action = '/tabs/' + id + '/edit';
+  openModal('modal-edit');
+}
+
+// Simple drag-and-drop reorder
+const tbody = document.getElementById('sortable-body');
+if (tbody) {
+  let dragRow = null;
+
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('dragstart', () => { dragRow = row; row.style.opacity = '.4'; });
+    row.addEventListener('dragend', () => { row.style.opacity = '1'; saveOrder(); });
+    row.addEventListener('dragover', e => { e.preventDefault(); tbody.insertBefore(dragRow, row); });
+    row.setAttribute('draggable', true);
+  });
+
+  function saveOrder() {
+    const order = [...tbody.querySelectorAll('tr')].map(r => r.dataset.id);
+    fetch('/tabs/reorder', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({order})
+    });
+  }
+}
+</script>
+{% endblock %}

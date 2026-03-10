@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Usuários{% endblock %}
+{% block page_title %}Gerenciamento de Usuários{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><i class="bi bi-people"></i> Usuários Cadastrados</div>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('addUserForm').style.display='block'">
+      <i class="bi bi-plus"></i> Novo Usuário
+    </button>
+  </div>
+  <div class="card-body">
+    <!-- Add User Form -->
+    <div id="addUserForm" style="display: none; margin-bottom: 20px; padding: 20px; background: #f9fafb; border-radius: 8px;">
+      <h3 style="margin-bottom: 16px;">Adicionar Novo Usuário</h3>
+      <form method="POST" action="{{ url_for('user_add') }}">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end;">
+          <div class="form-group">
+            <label class="form-label">Usuário</label>
+            <input type="text" name="username" class="form-control" placeholder="nome.usuario" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Senha</label>
+            <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nível</label>
+            <select name="role" class="form-control">
+              <option value="viewer">Visualizador</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check"></i> Adicionar
+            </button>
+            <button type="button" class="btn btn-ghost" onclick="document.getElementById('addUserForm').style.display='none'">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Users Table -->
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Usuário</th>
+            <th>Nível</th>
+            <th>Criado em</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ user.id }}</td>
+            <td>
+              <strong>{{ user.username }}</strong>
+              {% if user.username == 'admin' %}
+                <span style="background: var(--teal); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">Principal</span>
+              {% endif %}
+            </td>
+            <td>
+              <span style="background: {% if user.role == 'admin' %}var(--purple){% else %}#6b7280{% endif %}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                {{ user.role|title }}
+              </span>
+            </td>
+            <td>{{ user.created_at }}</td>
+            <td>
+              {% if user.username != 'admin' %}
+              <form method="POST" action="{{ url_for('user_delete', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja remover este usuário?')">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color: #ef4444;">
+                  <i class="bi bi-trash"></i> Remover
+                </button>
+              </form>
+              {% else %}
+              <span style="color: #6b7280; font-size: 12px;">Não pode ser removido</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

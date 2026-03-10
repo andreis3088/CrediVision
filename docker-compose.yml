@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  # ── Servidor Admin (roda no PC de gerenciamento ou no mesmo host) ──────────
+  kiosk-admin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: kiosk-admin
+    environment:
+      KIOSK_MODE: admin-only
+      SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-secreta-em-producao}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      DB_PATH: /data/kiosk.db
+    ports:
+      - "5000:5000"
+    volumes:
+      - kiosk-data:/data
+      - ~/Documentos/kiosk-media:/media:ro
+    restart: unless-stopped
+    networks:
+      - kiosk-net
+
+  # ── Display Kiosk (roda na TV) ────────────────────────────────────────────
+  kiosk-display:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: kiosk-display
+    environment:
+      KIOSK_MODE: display-only
+      ADMIN_URL: http://kiosk-admin:5000
+      DISPLAY: :0
+    volumes:
+      - kiosk-data:/data
+      - ~/Documentos/kiosk-media:/media:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix  # Compartilha display do host
+    depends_on:
+      - kiosk-admin
+    restart: unless-stopped
+    networks:
+      - kiosk-net
+
+volumes:
+  kiosk-data:
+    driver: local
+
+networks:
+  kiosk-net:
+    driver: bridge

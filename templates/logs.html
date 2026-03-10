@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Logs{% endblock %}
+{% block page_title %}Logs de Auditoria{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><i class="bi bi-clock-history"></i> Histórico de Ações</div>
+    <button class="btn btn-ghost btn-sm" onclick="location.reload()">
+      <i class="bi bi-arrow-clockwise"></i> Atualizar
+    </button>
+  </div>
+  <div class="card-body">
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>Usuário</th>
+            <th>Ação</th>
+            <th>Detalhes</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td>
+              <span style="font-size: 12px; color: #6b7280;">
+                {{ log.created_at }}
+              </span>
+            </td>
+            <td>
+              <strong>{{ log.user or 'system' }}</strong>
+            </td>
+            <td>
+              {% if log.action == 'login' %}
+                <span style="color: #10b981;">🔓 Login</span>
+              {% elif log.action == 'logout' %}
+                <span style="color: #f59e0b;">🔒 Logout</span>
+              {% elif log.action == 'tab_add' %}
+                <span style="color: #3b82f6;">➕ Adicionar Aba</span>
+              {% elif log.action == 'tab_edit' %}
+                <span style="color: #8b5cf6;">✏️ Editar Aba</span>
+              {% elif log.action == 'tab_delete' %}
+                <span style="color: #ef4444;">🗑️ Remover Aba</span>
+              {% elif log.action == 'tab_toggle' %}
+                <span style="color: #6366f1;">🔄 Ativar/Desativar</span>
+              {% elif log.action == 'user_add' %}
+                <span style="color: #14b8a6;">👤 Criar Usuário</span>
+              {% elif log.action == 'user_delete' %}
+                <span style="color: #ef4444;">👥 Remover Usuário</span>
+              {% elif log.action == 'kiosk_heartbeat' %}
+                <span style="color: #06b6d4;">💓 Kiosk Status</span>
+              {% else %}
+                <span style="color: #6b7280;">{{ log.action }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.details %}
+                <span style="font-size: 14px; color: #4b5563;">{{ log.details }}</span>
+              {% else %}
+                <span style="color: #9ca3af; font-style: italic;">-</span>
+              {% endif %}
+            </td>
+            <td>
+              <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 12px;">
+                {{ log.ip }}
+              </code>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 40px; color: #6b7280;">
+              <i class="bi bi-inbox" style="font-size: 48px; display: block; margin-bottom: 16px;"></i>
+              Nenhum registro encontrado
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    {% if logs|length >= 100 %}
+    <div style="margin-top: 20px; padding: 16px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+      <p style="margin: 0; color: #92400e;">
+        <i class="bi bi-info-circle"></i> 
+        Exibindo os 100 registros mais recentes. Para visualizar logs completos, consulte o banco de dados diretamente.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 24px;">
+  <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <div class="card-body" style="text-align: center;">
+      <i class="bi bi-activity" style="font-size: 32px; margin-bottom: 12px;"></i>
+      <h3 style="margin-bottom: 8px;">Atividade Recente</h3>
+      <p style="opacity: 0.9; font-size: 14px;">
+        {{ logs|length }} ações registradas
+      </p>
+    </div>
+  </div>
+  
+  <div class="card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+    <div class="card-body" style="text-align: center;">
+      <i class="bi bi-shield-check" style="font-size: 32px; margin-bottom: 12px;"></i>
+      <h3 style="margin-bottom: 8px;">Segurança</h3>
+      <p style="opacity: 0.9; font-size: 14px;">
+        Auditoria completa habilitada
+      </p>
+    </div>
+  </div>
+  
+  <div class="card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+    <div class="card-body" style="text-align: center;">
+      <i class="bi bi-database" style="font-size: 32px; margin-bottom: 12px;"></i>
+      <h3 style="margin-bottom: 8px;">Dados</h3>
+      <p style="opacity: 0.9; font-size: 14px;">
+        Logs persistidos em SQLite
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

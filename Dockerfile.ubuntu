@@ -1,0 +1,43 @@
+# Dockerfile para Ubuntu - CrediVision
+FROM python:3.11-slim
+
+# Definir variáveis de ambiente
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    MEDIA_FOLDER=/media
+
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y \
+    firefox \
+    wget \
+    curl \
+    unzip \
+    sqlite3 \
+    xvfb \
+    x11-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar dependências Python
+COPY requirements.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Criar diretório da aplicação
+WORKDIR /app
+
+# Copiar arquivos da aplicação
+COPY . /app/
+
+# Criar diretórios necessários
+RUN mkdir -p /data /media \
+    && chmod 755 /media \
+    && chmod 755 /data
+
+# Definir permissões
+RUN chmod +x /app/*.py || true
+
+# Expor portas
+EXPOSE 5000
+
+# Comando de inicialização
+CMD ["python", "app.py"]

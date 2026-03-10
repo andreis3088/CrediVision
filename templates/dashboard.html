@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-icon teal"><i class="bi bi-window-stack"></i></div>
+    <div>
+      <div class="stat-value">{{ stats.total_tabs }}</div>
+      <div class="stat-label">Total de Abas</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon lime"><i class="bi bi-check2-circle"></i></div>
+    <div>
+      <div class="stat-value">{{ stats.active_tabs }}</div>
+      <div class="stat-label">Abas Ativas</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon purple"><i class="bi bi-people-fill"></i></div>
+    <div>
+      <div class="stat-value">{{ stats.total_users }}</div>
+      <div class="stat-label">Usuários</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon dark"><i class="bi bi-broadcast"></i></div>
+    <div>
+      <div class="stat-value" id="uptime">--</div>
+      <div class="stat-label">Status do Kiosk</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+  <!-- Abas Ativas -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><i class="bi bi-window-stack"></i> Abas em Exibição</div>
+      <a href="{{ url_for('tabs_list') }}" class="btn btn-ghost btn-sm">Gerenciar</a>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nome</th>
+            <th>Duração</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tab in tabs %}
+          <tr>
+            <td style="color:#aaa; font-size:12px; font-family:'JetBrains Mono',monospace;">{{ loop.index }}</td>
+            <td><strong>{{ tab.name }}</strong></td>
+            <td style="font-variant-numeric:tabular-nums;">{{ tab.duration }}s</td>
+            <td>
+              {% if tab.active %}
+              <span class="badge badge-active"><i class="bi bi-circle-fill" style="font-size:7px;"></i> Ativo</span>
+              {% else %}
+              <span class="badge badge-inactive"><i class="bi bi-circle" style="font-size:7px;"></i> Inativo</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;color:#aaa;padding:30px;">Nenhuma aba cadastrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Logs recentes -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><i class="bi bi-journal-text"></i> Atividade Recente</div>
+      {% if session.role == 'admin' %}
+      <a href="{{ url_for('logs_view') }}" class="btn btn-ghost btn-sm">Ver todos</a>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>Usuário</th><th>Ação</th><th>Horário</th></tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td><code>{{ log.user or '—' }}</code></td>
+            <td style="font-size:13px;">{{ log.action }}</td>
+            <td style="font-size:11px; color:#aaa; white-space:nowrap;">{{ log.created_at[:16] }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" style="text-align:center;color:#aaa;padding:30px;">Sem registros.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Quick actions -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <div class="card-title"><i class="bi bi-lightning-fill"></i> Ações Rápidas</div>
+  </div>
+  <div class="card-body" style="display:flex;gap:12px;flex-wrap:wrap;">
+    <a href="{{ url_for('tabs_list') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Adicionar Aba</a>
+    <a href="{{ url_for('display') }}" target="_blank" class="btn btn-dark"><i class="bi bi-tv"></i> Ver Tela Kiosk</a>
+    <a href="{{ url_for('api_config') }}" target="_blank" class="btn btn-purple"><i class="bi bi-code-slash"></i> API JSON</a>
+    {% if session.role == 'admin' %}
+    <a href="{{ url_for('users_list') }}" class="btn btn-ghost"><i class="bi bi-person-plus"></i> Gerenciar Usuários</a>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Status do kiosk
+  const uptime = document.getElementById('uptime');
+  uptime.textContent = 'Online';
+  uptime.style.color = '#00AE9D';
+</script>
+{% endblock %}
