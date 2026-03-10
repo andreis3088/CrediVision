@@ -502,7 +502,7 @@
         <a href="{{ url_for('users_list') }}" class="nav-item {% if request.endpoint == 'users_list' %}active{% endif %}">
           <i class="bi bi-people"></i> Usuários
         </a>
-        <a href="{{ url_for('logs_view') }}" class="nav-item {% if request.endpoint == 'logs_view' %}active{% endif %}">
+        <a href="{{ url_for('logs_list') }}" class="nav-item {% if request.endpoint == 'logs_list' %}active{% endif %}">
           <i class="bi bi-clock-history"></i> Logs
         </a>
         {% endif %}

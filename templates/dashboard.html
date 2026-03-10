@@ -80,7 +80,7 @@
     <div class="card-header">
       <div class="card-title"><i class="bi bi-journal-text"></i> Atividade Recente</div>
       {% if session.role == 'admin' %}
-      <a href="{{ url_for('logs_view') }}" class="btn btn-ghost btn-sm">Ver todos</a>
+      <a href="{{ url_for('logs_list') }}" class="btn btn-ghost btn-sm">Ver todos</a>
       {% endif %}
     </div>
     <div class="table-wrapper">
