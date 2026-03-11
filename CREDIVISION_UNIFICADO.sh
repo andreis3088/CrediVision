@@ -204,7 +204,7 @@ app.secret_key = 'crevision_secret_key_2024'
 
 # Configuracao
 DATA_DIR = '/home/informa/Documents/kiosk-data'
-MEDIA_DIR = '/home/informa/Documents/kiosk-media'
+MEDIA_DIR = '/home/informa/Documents/kiosk-media'  # Pasta para armazenar mídias
 USERS_FILE = os.path.join(DATA_DIR, 'users.json')
 TABS_FILE = os.path.join(DATA_DIR, 'tabs.json')
 LOGS_FILE = os.path.join(DATA_DIR, 'logs.json')
@@ -376,10 +376,43 @@ def api_delete_tab(tab_id):
     for i, tab in enumerate(tabs):
         if tab['id'] == tab_id:
             tab_name = tab['name']
+            tab_url = tab.get('url', '')
+            tab_type = tab.get('type', 'url')
+            
+            # Remover arquivo de mídia se for local
+            if tab_type in ['image', 'video'] and tab_url:
+                # Verificar se é URL do nosso servidor de mídia
+                if tab_url.startswith('http://localhost:5000/media/'):
+                    # Extrair nome do arquivo da URL
+                    filename = tab_url.replace('http://localhost:5000/media/', '')
+                    file_path = os.path.join(MEDIA_DIR, filename)
+                    
+                    # Excluir arquivo se existir
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            log_action('delete_media_file', f'Arquivo de mídia excluído: {filename}')
+                            print(f"Arquivo de mídia excluído: {file_path}")
+                        except Exception as e:
+                            log_action('delete_media_error', f'Erro ao excluir arquivo {filename}: {str(e)}')
+                            print(f"Erro ao excluir arquivo {file_path}: {e}")
+                
+                # Verificar se é caminho local
+                elif tab_url.startswith('/') and os.path.exists(tab_url):
+                    try:
+                        os.remove(tab_url)
+                        log_action('delete_media_file', f'Arquivo local excluído: {tab_url}')
+                        print(f"Arquivo local excluído: {tab_url}")
+                    except Exception as e:
+                        log_action('delete_media_error', f'Erro ao excluir arquivo {tab_url}: {str(e)}')
+                        print(f"Erro ao excluir arquivo {tab_url}: {e}")
+            
+            # Remover aba do JSON
             tabs.pop(i)
             save_json(TABS_FILE, tabs)
             log_action('delete_tab', f'Aba {tab_name} removida')
-            return jsonify({'success': True})
+            
+            return jsonify({'success': True, 'message': 'Aba e mídia excluídas com sucesso'})
     
     return jsonify({'error': 'Aba nao encontrada'}), 404
 
@@ -414,6 +447,111 @@ def upload_file():
 def media_file(filename):
     # Servir arquivos de mídia
     return send_from_directory(MEDIA_DIR, filename)
+
+@app.route('/api/cleanup-media', methods=['POST'])
+@login_required
+def api_cleanup_media():
+    """Limpar arquivos de mídia órfãos (não referenciados por nenhuma aba)"""
+    try:
+        # Obter todas as abas
+        tabs = load_json(TABS_FILE)
+        
+        # Coletar todos os arquivos referenciados
+        referenced_files = set()
+        for tab in tabs:
+            tab_url = tab.get('url', '')
+            tab_type = tab.get('type', 'url')
+            
+            if tab_type in ['image', 'video'] and tab_url:
+                # Se for URL do nosso servidor
+                if tab_url.startswith('http://localhost:5000/media/'):
+                    filename = tab_url.replace('http://localhost:5000/media/', '')
+                    referenced_files.add(filename)
+        
+        # Verificar arquivos no diretório de mídia
+        if os.path.exists(MEDIA_DIR):
+            deleted_files = []
+            for filename in os.listdir(MEDIA_DIR):
+                file_path = os.path.join(MEDIA_DIR, filename)
+                if os.path.isfile(file_path) and filename not in referenced_files:
+                    try:
+                        os.remove(file_path)
+                        deleted_files.append(filename)
+                        log_action('cleanup_orphaned_file', f'Arquivo órfão removido: {filename}')
+                    except Exception as e:
+                        log_action('cleanup_error', f'Erro ao remover {filename}: {str(e)}')
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Limpeza concluída. {len(deleted_files)} arquivos órfãos removidos.',
+                'deleted_files': deleted_files
+            })
+        
+        return jsonify({'success': True, 'message': 'Nenhum arquivo órfão encontrado.'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/media-info')
+@login_required
+def api_media_info():
+    """Informações sobre o armazenamento de mídia"""
+    try:
+        total_files = 0
+        total_size = 0
+        file_types = {'image': 0, 'video': 0, 'other': 0}
+        files = []
+        
+        if os.path.exists(MEDIA_DIR):
+            for filename in os.listdir(MEDIA_DIR):
+                file_path = os.path.join(MEDIA_DIR, filename)
+                if os.path.isfile(file_path):
+                    size = os.path.getsize(file_path)
+                    total_files += 1
+                    total_size += size
+                    
+                    # Determinar tipo
+                    if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                        file_type = 'image'
+                    elif filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+                        file_type = 'video'
+                    else:
+                        file_type = 'other'
+                    
+                    file_types[file_type] += 1
+                    
+                    files.append({
+                        'filename': filename,
+                        'size': size,
+                        'type': file_type,
+                        'url': f"http://localhost:5000/media/{filename}"
+                    })
+        
+        # Verificar arquivos órfãos
+        tabs = load_json(TABS_FILE)
+        referenced_files = set()
+        for tab in tabs:
+            tab_url = tab.get('url', '')
+            tab_type = tab.get('type', 'url')
+            
+            if tab_type in ['image', 'video'] and tab_url:
+                if tab_url.startswith('http://localhost:5000/media/'):
+                    filename = tab_url.replace('http://localhost:5000/media/', '')
+                    referenced_files.add(filename)
+        
+        orphaned_files = [f for f in files if f['filename'] not in referenced_files]
+        
+        return jsonify({
+            'total_files': total_files,
+            'total_size': total_size,
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'file_types': file_types,
+            'orphaned_files': len(orphaned_files),
+            'files': files
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/media-files')
 @login_required
@@ -591,6 +729,29 @@ HTML_EOF
     </div>
 </div>
 
+<!-- Card de Informações de Armazenamento -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-hdd"></i> Armazenamento de Mídia</h5>
+                <button class="btn btn-sm btn-outline-danger" onclick="cleanupMedia()">
+                    <i class="fas fa-trash"></i> Limpar Órfãos
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="mediaInfo">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Nova Aba -->
 <div class="modal fade" id="addTabModal" tabindex="-1">
     <div class="modal-dialog">
@@ -670,6 +831,95 @@ HTML_EOF
 {% block scripts %}
 <script>
 let mediaFiles = [];
+
+function loadMediaInfo() {
+    fetch('/api/media-info')
+        .then(response => response.json())
+        .then(data => {
+            const mediaInfo = document.getElementById('mediaInfo');
+            
+            const totalSizeMB = data.total_size_mb || 0;
+            const totalFiles = data.total_files || 0;
+            const orphanedFiles = data.orphaned_files || 0;
+            const fileTypes = data.file_types || {};
+            
+            mediaInfo.innerHTML = `
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-primary">${totalFiles}</h4>
+                            <small class="text-muted">Arquivos</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-info">${totalSizeMB} MB</h4>
+                            <small class="text-muted">Espaço usado</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-warning">${fileTypes.image || 0}</h4>
+                            <small class="text-muted">Imagens</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-success">${fileTypes.video || 0}</h4>
+                            <small class="text-muted">Vídeos</small>
+                        </div>
+                    </div>
+                </div>
+                ${orphanedFiles > 0 ? `
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        ${orphanedFiles} arquivo(s) órfão(s) não estão sendo usados em nenhuma aba.
+                        <button class="btn btn-sm btn-warning ms-2" onclick="cleanupMedia()">
+                            Limpar agora
+                        </button>
+                    </div>
+                ` : ''}
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Os arquivos de mídia são armazenados em: /home/informa/Documents/kiosk-media/
+                        <br>
+                        Ao excluir uma aba, o arquivo de mídia correspondente é automaticamente removido.
+                    </small>
+                </div>
+            `;
+        })
+        .catch(error => {
+            document.getElementById('mediaInfo').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Erro ao carregar informações de mídia: ${error.message}
+                </div>
+            `;
+        });
+}
+
+function cleanupMedia() {
+    if (confirm('Tem certeza? Isso vai remover todos os arquivos de mídia que não estão sendo usados em nenhuma aba.')) {
+        fetch('/api/cleanup-media', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                loadMediaInfo(); // Recarregar informações
+                loadTabs(); // Recarregar abas
+            } else {
+                alert('Erro: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            alert('Erro ao limpar mídia: ' + error.message);
+        });
+    }
+}
 
 function toggleUrlInput() {
     const type = document.getElementById('tabType').value;
@@ -768,6 +1018,9 @@ function loadTabs() {
                 `;
                 tbody.appendChild(row);
             });
+            
+            // Carregar informações de mídia após carregar abas
+            loadMediaInfo();
         });
 }
 
@@ -817,9 +1070,22 @@ function submitTab(url) {
 }
 
 function deleteTab(id) {
-    if (confirm('Tem certeza?')) {
+    if (confirm('Tem certeza? Isso vai remover a aba e o arquivo de mídia associado.')) {
         fetch(`/api/tabs/${id}`, {method: 'DELETE'})
-        .then(() => loadTabs());
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.message) {
+                    alert(data.message);
+                }
+                loadTabs();
+            } else {
+                alert('Erro: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            alert('Erro ao excluir aba: ' + error.message);
+        });
     }
 }
 
