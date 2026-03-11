@@ -1,50 +1,54 @@
 #!/bin/bash
 
-# Script para instalar o sistema de atualização automática do CrediVision
+# Script corrigido para instalar atualização automática
 
 echo "=========================================="
-echo "Instalando Atualização Automática"
+echo "Instalando Atualização Automática (FIXED)"
 echo "=========================================="
 echo ""
 
 # Verificar se está rodando como root
 if [ "$EUID" -ne 0 ]; then 
     echo "ERRO: Execute este script com sudo"
-    echo "Uso: sudo bash install_auto_update.sh"
+    echo "Uso: sudo bash install_auto_update_fixed.sh"
     exit 1
 fi
 
-# Obter usuário correto (não root)
-if [ "$SUDO_USER" != "root" ] && [ -n "$SUDO_USER" ]; then
-    SERVICE_USER="$SUDO_USER"
-elif [ -d "/home/informa" ]; then
+# Detectar usuário correto
+if [ -d "/home/informa" ]; then
     SERVICE_USER="informa"
+elif [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    SERVICE_USER="$SUDO_USER"
 else
-    echo "ERRO: Não foi possível determinar o usuário correto"
-    echo "Execute como: sudo -u informa bash install_auto_update.sh"
+    echo "ERRO: Não foi possível determinar o usuário"
+    echo "Execute: sudo -u informa bash install_auto_update_fixed.sh"
     exit 1
 fi
 
 PROJECT_DIR="/home/$SERVICE_USER/Documentos/CrediVision"
-
-# Verificar se o diretório existe
-if [ ! -d "$PROJECT_DIR" ]; then
-    echo "ERRO: Diretório do projeto não encontrado: $PROJECT_DIR"
-    exit 1
-fi
-
 echo "Usuário: $SERVICE_USER"
 echo "Diretório: $PROJECT_DIR"
 echo ""
 
-echo "PASSO 1: Instalando dependências Python..."
+# Verificar se o diretório do projeto existe
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo "ERRO: Diretório do projeto não encontrado: $PROJECT_DIR"
+    echo "Verifique se o CrediVision está instalado corretamente"
+    exit 1
+fi
+
+# Verificar se os arquivos necessários existem
+if [ ! -f "$PROJECT_DIR/auto_update_kiosk.py" ]; then
+    echo "ERRO: auto_update_kiosk.py não encontrado"
+    echo "Copie os arquivos do projeto para o servidor primeiro"
+    exit 1
+fi
+
+echo "PASSO 1: Instalando dependências..."
 
 # Instalar dependências
 apt update
 apt install -y python3-pip python3-watchdog
-
-# Instalar watchdog se necessário
-pip3 install watchdog 2>/dev/null || true
 
 echo ""
 echo "PASSO 2: Configurando serviço systemd..."
@@ -112,29 +116,19 @@ echo "=========================================="
 echo "Instalação Concluída!"
 echo "=========================================="
 echo ""
-echo "Sistema de atualização automática instalado:"
-echo ""
-echo "Métodos de detecção:"
-echo "  • API polling (a cada 5 segundos)"
-echo "  • Monitoramento de arquivos (tabs.json)"
-echo "  • Webhook (via interface admin)"
+echo "Sistema de atualização automática instalado!"
 echo ""
 echo "Comandos úteis:"
 echo "  Ver status: sudo systemctl status credivision-auto-update.service"
 echo "  Ver logs: sudo journalctl -u credivision-auto-update.service -f"
-echo "  Parar serviço: sudo systemctl stop credivision-auto-update.service"
-echo "  Iniciar serviço: sudo systemctl start credivision-auto-update.service"
+echo "  Parar: sudo systemctl stop credivision-auto-update.service"
+echo "  Iniciar: sudo systemctl start credivision-auto-update.service"
 echo ""
-echo "Como funciona:"
-echo "  1. Quando você adiciona/edita/remove abas na interface"
-echo "  2. O sistema detecta automaticamente"
-echo "  3. O kiosk é reiniciado com nova configuração"
-echo "  4. Notificação é exibida na tela"
+echo "Para testar:"
+echo "  1. Adicione uma nova aba na interface web"
+echo "  2. Aguarde até 10 segundos"
+echo "  3. O kiosk deve reiniciar automaticamente"
 echo ""
-echo "Arquivos de log:"
-echo "  • Systemd: journalctl -u credivision-auto-update.service"
-echo "  • Aplicação: /tmp/credivision_auto_update.log"
-echo ""
-echo "Para testar manualmente:"
-echo "  sudo -u $SERVICE_USER python3 $PROJECT_DIR/auto_update_kiosk.py --test"
+echo "Logs em tempo real:"
+echo "  sudo tail -f /tmp/credivision_auto_update.log"
 echo ""

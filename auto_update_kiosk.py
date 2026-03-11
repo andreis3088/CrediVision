@@ -114,15 +114,32 @@ class KioskAutoUpdater:
             # Aguardar um momento
             time.sleep(2)
             
-            # Iniciar novo kiosk
-            kiosk_script = "/home/informa/Documentos/CrediVision/simple_kiosk_enhanced.sh"
-            if os.path.exists(kiosk_script):
+            # Iniciar novo kiosk - detectar script disponível
+            project_dir = "/home/informa/Documentos/CrediVision"
+            kiosk_scripts = [
+                "simple_kiosk_enhanced.sh",
+                "simple_kiosk.sh",
+                "start_kiosk.sh"
+            ]
+            
+            kiosk_script = None
+            for script in kiosk_scripts:
+                script_path = os.path.join(project_dir, script)
+                if os.path.exists(script_path):
+                    kiosk_script = script_path
+                    break
+            
+            if kiosk_script:
+                print(f"Usando script: {kiosk_script}")
                 self.kiosk_process = subprocess.Popen([
                     'sudo', '-u', 'informa', kiosk_script, 'fullscreen'
                 ])
                 self.show_notification("Kiosk atualizado automaticamente")
             else:
-                print("Script do kiosk não encontrado")
+                print("Nenhum script kiosk encontrado")
+                print("Scripts procurados:")
+                for script in kiosk_scripts:
+                    print(f"  - {os.path.join(project_dir, script)}")
                 
         except Exception as e:
             print(f"Erro ao reiniciar kiosk: {e}")
