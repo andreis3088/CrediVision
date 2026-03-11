@@ -767,6 +767,19 @@ echo ""
 export DISPLAY=:0
 export XAUTHORITY=/home/informa/.Xauthority
 
+# Arquivo de configuracao
+TABS_FILE="/home/informa/Documents/kiosk-data/tabs.json"
+CHECK_INTERVAL=5  # Verificar a cada 5 segundos
+
+# Funcao para obter hash do arquivo (detectar mudancas)
+get_file_hash() {
+    if [ -f "$TABS_FILE" ]; then
+        md5sum "$TABS_FILE" | awk '{print $1}'
+    else
+        echo ""
+    fi
+}
+
 # Funcao para obter abas configuradas
 get_tabs() {
     python3 << 'PYTHON'
@@ -801,6 +814,79 @@ try:
 except Exception as e:
     print("[]")
 PYTHON
+}
+
+# Funcao para reiniciar o kiosk
+restart_kiosk() {
+    echo "Detectada mudança no tabs.json! Reiniciando kiosk..."
+    
+    # Fechar Firefox completamente
+    pkill -f firefox 2>/dev/null || true
+    pkill -f "firefox-*" 2>/dev/null || true
+    
+    # Aguardar fechar
+    sleep 3
+    
+    # Garantir que nenhum processo Firefox esteja rodando
+    while pgrep -f firefox > /dev/null; do
+        pkill -9 -f firefox 2>/dev/null || true
+        sleep 1
+    done
+    
+    # Reiniciar variaveis
+    CURRENT_INDEX=0
+    FIREFOX_PID=""
+    
+    # Recarregar configuracao
+    TABS_JSON=$(get_tabs)
+    TABS_COUNT=$(echo "$TABS_JSON" | python3 -c "import json, sys; print(len(json.load(sys.stdin)))")
+    
+    if [ "$TABS_COUNT" -eq 0 ]; then
+        echo "ERRO: Nenhuma aba ativa encontrada!"
+        echo "Configure abas em: http://$(hostname -I | awk '{print $1}'):5000"
+        return 1
+    fi
+    
+    echo "Nova configuracao carregada:"
+    echo "$TABS_JSON" | python3 -c "
+import json, sys
+tabs = json.load(sys.stdin)
+for i, tab in enumerate(tabs):
+    print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s')
+"
+    
+    # Recriar arrays
+    echo "$TABS_JSON" | python3 -c "
+import json, sys
+tabs = json.load(sys.stdin)
+for i, tab in enumerate(tabs):
+    print(f'TAB_{i}_NAME=\"{tab[\"name\"]}\"')
+    print(f'TAB_{i}_URL=\"{tab[\"url\"]}\"')
+    print(f'TAB_{i}_TYPE=\"{tab[\"type\"]}\"')
+    print(f'TAB_{i}_DURATION={tab[\"duration\"]}')
+" > "$TEMP_DIR/tabs_vars.sh"
+    
+    source "$TEMP_DIR/tabs_vars.sh"
+    
+    # Iniciar Firefox com primeira aba
+    CURRENT_URL=$(get_current_url)
+    CURRENT_NAME=$(get_current_name)
+    echo "Reiniciando com: $CURRENT_NAME"
+    
+    firefox --kiosk "$CURRENT_URL" &
+    FIREFOX_PID=$!
+    
+    # Aguardar Firefox carregar
+    sleep 5
+    
+    # Verificar se Firefox esta rodando
+    if ! pgrep -f firefox > /dev/null; then
+        echo "ERRO: Firefox nao iniciou!"
+        return 1
+    fi
+    
+    echo "Firefox reiniciado (PID: $FIREFOX_PID)"
+    return 0
 }
 
 # Obter abas ativas
@@ -845,6 +931,7 @@ mkdir -p "$TEMP_DIR"
 cleanup() {
     echo "Limpando arquivos temporários..."
     rm -rf "$TEMP_DIR"
+    pkill -f firefox 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -948,6 +1035,7 @@ HTML_EOF
 # Processar abas e criar arrays
 echo "Processando abas..."
 CURRENT_INDEX=0
+LAST_HASH=$(get_file_hash)
 
 # Criar arrays com as abas
 echo "$TABS_JSON" | python3 -c "
@@ -1008,8 +1096,9 @@ get_current_duration() {
 
 # Iniciar rotacao
 echo ""
-echo "=== ROTACAO AUTOMATICA INICIADA ==="
+echo "=== ROTACAO AUTOMATICA COM MONITORAMENTO ==="
 echo "Usando 1 janela Firefox com rotacao de URLs"
+echo "Monitorando mudanças em tabs.json a cada $CHECK_INTERVAL segundos"
 echo "Pressione Ctrl+C para parar"
 echo ""
 
@@ -1031,22 +1120,78 @@ if ! pgrep -f firefox > /dev/null; then
 fi
 
 echo "Firefox iniciado (PID: $FIREFOX_PID)"
+echo "Monitorando ativo..."
 
-# Loop de rotacao
+# Loop de rotacao com monitoramento
 while true; do
+    # Verificar se houve mudança no arquivo
+    CURRENT_HASH=$(get_file_hash)
+    if [ "$CURRENT_HASH" != "$LAST_HASH" ]; then
+        echo ""
+        echo "=== MUDANÇA DETECTADA ==="
+        echo "Hash anterior: $LAST_HASH"
+        echo "Hash atual: $CURRENT_HASH"
+        echo ""
+        
+        # Reiniciar kiosk com nova configuracao
+        if restart_kiosk; then
+            LAST_HASH=$CURRENT_HASH
+            echo "Kiosk reiniciado com sucesso!"
+        else
+            echo "Erro ao reiniciar kiosk!"
+            sleep 5
+            continue
+        fi
+    fi
+    
+    # Verificar se Firefox ainda esta rodando
+    if ! pgrep -f firefox > /dev/null; then
+        echo "Firefox fechado, reiniciando..."
+        restart_kiosk
+        LAST_HASH=$(get_file_hash)
+        continue
+    fi
+    
     # Obter informacoes da aba atual
     CURRENT_NAME=$(get_current_name)
     CURRENT_DURATION=$(get_current_duration)
     
-    echo "Exibindo: $CURRENT_NAME (${CURRENT_DURATION}s)"
+    echo "Exibindo: $CURRENT_NAME (${CURRENT_DURATION}s) [Próxima verificação em ${CHECK_INTERVAL}s]"
     
-    # Aguardar tempo configurado
-    sleep "$CURRENT_DURATION"
+    # Dividir o tempo em intervalos menores para verificar mudanças
+    ELAPSED=0
+    while [ $ELAPSED -lt $CURRENT_DURATION ]; do
+        sleep $CHECK_INTERVAL
+        ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+        
+        # Verificar mudanca durante o tempo de exibicao
+        CURRENT_HASH=$(get_file_hash)
+        if [ "$CURRENT_HASH" != "$LAST_HASH" ]; then
+            echo ""
+            echo "=== MUDANÇA DETECTADA DURANTE EXIBIÇÃO ==="
+            break
+        fi
+        
+        # Verificar se Firefox ainda esta rodando
+        if ! pgrep -f firefox > /dev/null; then
+            echo "Firefox fechado durante exibição!"
+            break
+        fi
+    done
     
-    # Verificar se Firefox ainda esta rodando
+    # Se houve mudanca, reiniciar o loop
+    CURRENT_HASH=$(get_file_hash)
+    if [ "$CURRENT_HASH" != "$LAST_HASH" ]; then
+        echo "Reiniciando devido a mudança..."
+        continue
+    fi
+    
+    # Se Firefox fechou, reiniciar
     if ! pgrep -f firefox > /dev/null; then
-        echo "Firefox fechado, saindo..."
-        break
+        echo "Reiniciando Firefox..."
+        restart_kiosk
+        LAST_HASH=$(get_file_hash)
+        continue
     fi
     
     # Proxima aba (circular)
@@ -1058,11 +1203,10 @@ while true; do
     
     echo "Trocando para: $NEXT_NAME"
     
-    # Abrir nova URL na mesma janela usando JavaScript
-    # Tentar diferentes métodos para mudar a URL
+    # Abrir nova URL na mesma janela
     echo "Mudando URL para: $NEXT_URL"
     
-    # Método 1: Usar xdotool para abrir nova URL
+    # Método: Usar xdotool para abrir nova URL
     xdotool key ctrl+l
     sleep 0.5
     xdotool type "$NEXT_URL"
