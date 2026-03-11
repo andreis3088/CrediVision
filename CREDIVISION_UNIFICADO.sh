@@ -759,16 +759,28 @@ create_kiosk_script() {
     cat > "$PROJECT_DIR/kiosk.sh" << 'KIOSK_EOF'
 #!/bin/bash
 
-echo "=== CREDIVISION KIOSK ==="
-echo "Iniciando Firefox Kiosk..."
+echo "=== CREDIVISION KIOSK COM ROTACAO ==="
+echo "Iniciando Firefox Kiosk com Rotacao Automatica..."
 echo ""
 
 # Ambiente X11
 export DISPLAY=:0
 export XAUTHORITY=/home/informa/.Xauthority
 
-# Funcao para obter URL do tabs.json
-get_url() {
+# Diretorio temporario
+TEMP_DIR="/tmp/credivision_kiosk_$$"
+mkdir -p "$TEMP_DIR"
+
+# Funcao de limpeza
+cleanup() {
+    echo "Limpando arquivos temporarios..."
+    rm -rf "$TEMP_DIR"
+    pkill -f firefox 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Funcao para obter abas configuradas
+get_tabs() {
     python3 << 'PYTHON'
 import json
 import sys
@@ -780,61 +792,260 @@ try:
     # Verificar estrutura (lista ou objeto)
     tabs = data if isinstance(data, list) else data.get("tabs", [])
     
-    # Procurar primeira aba ativa
+    # Filtrar apenas abas ativas e ordenar por ID
+    active_tabs = []
     for tab in tabs:
         if tab.get("enabled", True):
-            url = tab.get("url", "").strip()
-            if url:
-                print(url)
-                sys.exit(0)
+            active_tabs.append({
+                'id': tab.get('id', 0),
+                'name': tab.get('name', 'Sem nome'),
+                'url': tab.get('url', ''),
+                'type': tab.get('type', 'url'),
+                'duration': tab.get('duration', 30)
+            })
     
-    # Fallback para Google
-    print("https://google.com")
+    # Ordenar por ID
+    active_tabs.sort(key=lambda x: x['id'])
+    
+    # Retornar como JSON
+    import json
+    print(json.dumps(active_tabs))
     
 except Exception as e:
-    print("https://google.com")
+    print("[]")
 PYTHON
 }
 
-# Obter URL
-URL=$(get_url)
-echo "URL configurada: $URL"
+# Obter abas ativas
+TABS_JSON=$(get_tabs)
+TABS_COUNT=$(echo "$TABS_JSON" | python3 -c "import json, sys; print(len(json.load(sys.stdin)))")
+
+if [ "$TABS_COUNT" -eq 0 ]; then
+    echo "ERRO: Nenhuma aba ativa encontrada!"
+    echo "Configure abas em: http://$(hostname -I | awk '{print $1}'):5000"
+    exit 1
+fi
+
+echo "Abas ativas encontradas: $TABS_COUNT"
+echo "$TABS_JSON" | python3 -c "
+import json, sys
+tabs = json.load(sys.stdin)
+for i, tab in enumerate(tabs):
+    print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s')
+"
 
 # Fechar Firefox anteriores
 echo "Fechando Firefox anteriores..."
 pkill -f firefox 2>/dev/null || true
 sleep 3
 
-# Abrir Firefox em modo kiosk puro
-echo "Abrindo Firefox em modo kiosk..."
-firefox --kiosk "$URL" &
+# Array para armazenar IDs das janelas
+WINDOW_IDS=()
 
-# Aguardar inicio
+# Funcao para criar HTML para imagens
+create_image_html() {
+    local image_path="$1"
+    local title="$2"
+    
+    cat > "$TEMP_DIR/image_$$.html" << HTML_EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>$title</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+        img {
+            width: 100vw;
+            height: 100vh;
+            object-fit: contain;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <img src="$image_path" alt="$title" />
+</body>
+</html>
+HTML_EOF
+}
+
+# Funcao para criar HTML para vídeos
+create_video_html() {
+    local video_path="$1"
+    local title="$2"
+    
+    cat > "$TEMP_DIR/video_$$.html" << HTML_EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>$title</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+        video {
+            width: 100vw;
+            height: 100vh;
+            object-fit: contain;
+            display: block;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" autoplay loop>
+        <source src="$video_path">
+        Seu navegador não suporta vídeo.
+    </video>
+    <div class="controls">
+        <button onclick="document.getElementById('video').play()">▶</button>
+        <button onclick="document.getElementById('video').pause()">⏸</button>
+        <button onclick="document.getElementById('video').muted = !document.getElementById('video').muted">🔊</button>
+        <button onclick="document.getElementById('video').requestFullscreen()">⛶</button>
+    </div>
+</body>
+</html>
+HTML_EOF
+}
+
+# Abrir cada aba em sua propria janela
+echo "Abrindo janelas Firefox..."
+CURRENT_INDEX=0
+
+# Processar cada aba
+echo "$TABS_JSON" | python3 -c "
+import json, sys
+tabs = json.load(sys.stdin)
+for i, tab in enumerate(tabs):
+    print(f'TAB_{i}_NAME=\"{tab[\"name\"]}\"')
+    print(f'TAB_{i}_URL=\"{tab[\"url\"]}\"')
+    print(f'TAB_{i}_TYPE=\"{tab[\"type\"]}\"')
+    print(f'TAB_{i}_DURATION={tab[\"duration\"]}')
+" > "$TEMP_DIR/tabs_vars.sh"
+
+source "$TEMP_DIR/tabs_vars.sh"
+
+# Abrir janelas para cada aba
+for ((i=0; i<TABS_COUNT; i++)); do
+    var_name="TAB_${i}_NAME"
+    name="${!var_name}"
+    
+    var_url="TAB_${i}_URL"
+    url="${!var_url}"
+    
+    var_type="TAB_${i}_TYPE"
+    type="${!var_type}"
+    
+    echo "  - $name ($type)"
+    
+    case "$type" in
+        "image")
+            # Verificar se é caminho local
+            if [[ "$url" =~ ^/ ]]; then
+                create_image_html "$url" "$name"
+                firefox --new-window --kiosk "file://$TEMP_DIR/image_$$.html" &
+            else
+                firefox --new-window --kiosk "$url" &
+            fi
+            ;;
+        "video")
+            # Verificar se é caminho local
+            if [[ "$url" =~ ^/ ]]; then
+                create_video_html "$url" "$name"
+                firefox --new-window --kiosk "file://$TEMP_DIR/video_$$.html" &
+            else
+                firefox --new-window --kiosk "$url" &
+            fi
+            ;;
+        *)
+            # URL normal
+            firefox --new-window --kiosk "$url" &
+            ;;
+    esac
+    
+    # Pegar ID da janela
+    sleep 2
+    WINDOW_ID=$(xdotool search --class firefox | tail -1)
+    WINDOW_IDS+=("$WINDOW_ID")
+    
+    # Minimizar janela temporariamente
+    xdotool windowminimize "$WINDOW_ID"
+done
+
+echo ""
+echo "=== ROTACAO AUTOMATICA INICIADA ==="
+echo "Janelas: ${#WINDOW_IDS[@]}"
+echo "Pressione Ctrl+C para parar"
+echo ""
+
+# Aguardar carregamento
 sleep 5
 
-# Verificar se abriu
-if pgrep -f firefox > /dev/null; then
-    echo "✓ Kiosk iniciado com sucesso!"
-    echo "URL: $URL"
-    echo "Modo: Tela cheia (kiosk)"
-    echo ""
-    echo "Para parar: pkill -f firefox"
-    echo ""
+# Iniciar rotacao
+CURRENT_INDEX=0
+
+while true; do
+    if [ ${#WINDOW_IDS[@]} -eq 0 ]; then
+        echo "Nenhuma janela para rotacionar"
+        break
+    fi
     
-    # Manter script rodando
-    while pgrep -f firefox > /dev/null; do
-        sleep 1
-    done
+    # Minimizar janela atual
+    xdotool windowminimize "${WINDOW_IDS[$CURRENT_INDEX]}"
     
-    echo "Kiosk finalizado"
-else
-    echo "✗ Falha ao iniciar Firefox"
-    echo "Verificando problemas..."
-    echo "Firefox: $(which firefox)"
-    echo "DISPLAY: $DISPLAY"
-    echo "Usuario: $(whoami)"
-    exit 1
-fi
+    # Proxima janela (circular)
+    CURRENT_INDEX=$(( (CURRENT_INDEX + 1) % TABS_COUNT ))
+    
+    # Ativar e maximizar proxima janela
+    xdotool windowactivate "${WINDOW_IDS[$CURRENT_INDEX]}"
+    xdotool windowmaximize "${WINDOW_IDS[$CURRENT_INDEX]}"
+    
+    # Obter duracao da aba atual
+    var_duration="TAB_${CURRENT_INDEX}_DURATION"
+    DURATION="${!var_duration}"
+    
+    # Obter nome da aba atual
+    var_name="TAB_${CURRENT_INDEX}_NAME"
+    NAME="${!var_name}"
+    
+    echo "Exibindo: $NAME (${DURATION}s)"
+    
+    # Aguardar tempo configurado
+    sleep "$DURATION"
+done
+
+echo "Rotacao finalizada"
 KIOSK_EOF
 
     chmod +x "$PROJECT_DIR/kiosk.sh"
