@@ -759,25 +759,13 @@ create_kiosk_script() {
     cat > "$PROJECT_DIR/kiosk.sh" << 'KIOSK_EOF'
 #!/bin/bash
 
-echo "=== CREDIVISION KIOSK COM ROTACAO ==="
-echo "Iniciando Firefox Kiosk com Rotacao Automatica..."
+echo "=== CREDIVISION KIOSK - 1 JANELA COM ROTACAO ==="
+echo "Iniciando Firefox Kiosk com Rotacao de URLs..."
 echo ""
 
 # Ambiente X11
 export DISPLAY=:0
 export XAUTHORITY=/home/informa/.Xauthority
-
-# Diretorio temporario
-TEMP_DIR="/tmp/credivision_kiosk_$$"
-mkdir -p "$TEMP_DIR"
-
-# Funcao de limpeza
-cleanup() {
-    echo "Limpando arquivos temporarios..."
-    rm -rf "$TEMP_DIR"
-    pkill -f firefox 2>/dev/null || true
-}
-trap cleanup EXIT
 
 # Funcao para obter abas configuradas
 get_tabs() {
@@ -804,11 +792,10 @@ try:
                 'duration': tab.get('duration', 30)
             })
     
-    # Ordenar por ID
+    # Ordenar por ID (ordem de criacao)
     active_tabs.sort(key=lambda x: x['id'])
     
     # Retornar como JSON
-    import json
     print(json.dumps(active_tabs))
     
 except Exception as e:
@@ -833,14 +820,33 @@ tabs = json.load(sys.stdin)
 for i, tab in enumerate(tabs):
     print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s')
 "
+echo ""
 
-# Fechar Firefox anteriores
+# Fechar Firefox anteriores completamente
 echo "Fechando Firefox anteriores..."
 pkill -f firefox 2>/dev/null || true
-sleep 3
+pkill -f "firefox-*" 2>/dev/null || true
+sleep 5
 
-# Array para armazenar IDs das janelas
-WINDOW_IDS=()
+# Garantir que nenhum processo Firefox esteja rodando
+while pgrep -f firefox > /dev/null; do
+    echo "Aguardando Firefox fechar..."
+    pkill -9 -f firefox 2>/dev/null || true
+    sleep 1
+done
+
+echo "Firefox fechado. Iniciando kiosk..."
+
+# Diretorio temporario para HTMLs
+TEMP_DIR="/tmp/credivision_kiosk_$$"
+mkdir -p "$TEMP_DIR"
+
+# Funcao de limpeza
+cleanup() {
+    echo "Limpando arquivos temporários..."
+    rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
 
 # Funcao para criar HTML para imagens
 create_image_html() {
@@ -939,11 +945,11 @@ create_video_html() {
 HTML_EOF
 }
 
-# Abrir cada aba em sua propria janela
-echo "Abrindo janelas Firefox..."
+# Processar abas e criar arrays
+echo "Processando abas..."
 CURRENT_INDEX=0
 
-# Processar cada aba
+# Criar arrays com as abas
 echo "$TABS_JSON" | python3 -c "
 import json, sys
 tabs = json.load(sys.stdin)
@@ -956,93 +962,115 @@ for i, tab in enumerate(tabs):
 
 source "$TEMP_DIR/tabs_vars.sh"
 
-# Abrir janelas para cada aba
-for ((i=0; i<TABS_COUNT; i++)); do
-    var_name="TAB_${i}_NAME"
-    name="${!var_name}"
-    
-    var_url="TAB_${i}_URL"
-    url="${!var_url}"
-    
-    var_type="TAB_${i}_TYPE"
-    type="${!var_type}"
-    
-    echo "  - $name ($type)"
+# Funcao para obter URL da aba atual
+get_current_url() {
+    local var_url="TAB_${CURRENT_INDEX}_URL"
+    local var_type="TAB_${CURRENT_INDEX}_TYPE"
+    local url="${!var_url}"
+    local type="${!var_type}"
     
     case "$type" in
         "image")
             # Verificar se é caminho local
             if [[ "$url" =~ ^/ ]]; then
-                create_image_html "$url" "$name"
-                firefox --new-window --kiosk "file://$TEMP_DIR/image_$$.html" &
+                create_image_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
+                echo "file://$TEMP_DIR/image_$$.html"
             else
-                firefox --new-window --kiosk "$url" &
+                echo "$url"
             fi
             ;;
         "video")
             # Verificar se é caminho local
             if [[ "$url" =~ ^/ ]]; then
-                create_video_html "$url" "$name"
-                firefox --new-window --kiosk "file://$TEMP_DIR/video_$$.html" &
+                create_video_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
+                echo "file://$TEMP_DIR/video_$$.html"
             else
-                firefox --new-window --kiosk "$url" &
+                echo "$url"
             fi
             ;;
         *)
-            # URL normal
-            firefox --new-window --kiosk "$url" &
+            echo "$url"
             ;;
     esac
-    
-    # Pegar ID da janela
-    sleep 2
-    WINDOW_ID=$(xdotool search --class firefox | tail -1)
-    WINDOW_IDS+=("$WINDOW_ID")
-    
-    # Minimizar janela temporariamente
-    xdotool windowminimize "$WINDOW_ID"
-done
+}
 
+# Funcao para obter nome da aba atual
+get_current_name() {
+    local var_name="TAB_${CURRENT_INDEX}_NAME"
+    echo "${!var_name}"
+}
+
+# Funcao para obter duracao da aba atual
+get_current_duration() {
+    local var_duration="TAB_${CURRENT_INDEX}_DURATION"
+    echo "${!var_duration}"
+}
+
+# Iniciar rotacao
 echo ""
 echo "=== ROTACAO AUTOMATICA INICIADA ==="
-echo "Janelas: ${#WINDOW_IDS[@]}"
+echo "Usando 1 janela Firefox com rotacao de URLs"
 echo "Pressione Ctrl+C para parar"
 echo ""
 
-# Aguardar carregamento
+# Iniciar Firefox com primeira aba
+CURRENT_URL=$(get_current_url)
+CURRENT_NAME=$(get_current_name)
+echo "Iniciando com: $CURRENT_NAME"
+
+firefox --kiosk "$CURRENT_URL" &
+FIREFOX_PID=$!
+
+# Aguardar Firefox carregar
 sleep 5
 
-# Iniciar rotacao
-CURRENT_INDEX=0
+# Verificar se Firefox esta rodando
+if ! pgrep -f firefox > /dev/null; then
+    echo "ERRO: Firefox nao iniciou!"
+    exit 1
+fi
 
+echo "Firefox iniciado (PID: $FIREFOX_PID)"
+
+# Loop de rotacao
 while true; do
-    if [ ${#WINDOW_IDS[@]} -eq 0 ]; then
-        echo "Nenhuma janela para rotacionar"
+    # Obter informacoes da aba atual
+    CURRENT_NAME=$(get_current_name)
+    CURRENT_DURATION=$(get_current_duration)
+    
+    echo "Exibindo: $CURRENT_NAME (${CURRENT_DURATION}s)"
+    
+    # Aguardar tempo configurado
+    sleep "$CURRENT_DURATION"
+    
+    # Verificar se Firefox ainda esta rodando
+    if ! pgrep -f firefox > /dev/null; then
+        echo "Firefox fechado, saindo..."
         break
     fi
     
-    # Minimizar janela atual
-    xdotool windowminimize "${WINDOW_IDS[$CURRENT_INDEX]}"
-    
-    # Proxima janela (circular)
+    # Proxima aba (circular)
     CURRENT_INDEX=$(( (CURRENT_INDEX + 1) % TABS_COUNT ))
     
-    # Ativar e maximizar proxima janela
-    xdotool windowactivate "${WINDOW_IDS[$CURRENT_INDEX]}"
-    xdotool windowmaximize "${WINDOW_IDS[$CURRENT_INDEX]}"
+    # Obter proxima URL
+    NEXT_URL=$(get_current_url)
+    NEXT_NAME=$(get_current_name)
     
-    # Obter duracao da aba atual
-    var_duration="TAB_${CURRENT_INDEX}_DURATION"
-    DURATION="${!var_duration}"
+    echo "Trocando para: $NEXT_NAME"
     
-    # Obter nome da aba atual
-    var_name="TAB_${CURRENT_INDEX}_NAME"
-    NAME="${!var_name}"
+    # Abrir nova URL na mesma janela usando JavaScript
+    # Tentar diferentes métodos para mudar a URL
+    echo "Mudando URL para: $NEXT_URL"
     
-    echo "Exibindo: $NAME (${DURATION}s)"
+    # Método 1: Usar xdotool para abrir nova URL
+    xdotool key ctrl+l
+    sleep 0.5
+    xdotool type "$NEXT_URL"
+    sleep 0.5
+    xdotool key Return
     
-    # Aguardar tempo configurado
-    sleep "$DURATION"
+    # Aguardar carregar
+    sleep 3
 done
 
 echo "Rotacao finalizada"
