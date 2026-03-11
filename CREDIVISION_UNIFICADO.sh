@@ -1215,8 +1215,11 @@ get_current_url() {
     
     case "$type" in
         "image")
-            # Verificar se é caminho local
-            if [[ "$url" =~ ^/ ]]; then
+            # Se for URL HTTP do servidor de mídia, usar direto
+            if [[ "$url" =~ ^http://localhost:5000/media/ ]]; then
+                echo "$url"
+            # Se for caminho local, criar HTML temporário
+            elif [[ "$url" =~ ^/ ]]; then
                 create_image_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
                 echo "file://$TEMP_DIR/image_$$.html"
             else
@@ -1224,8 +1227,11 @@ get_current_url() {
             fi
             ;;
         "video")
-            # Verificar se é caminho local
-            if [[ "$url" =~ ^/ ]]; then
+            # Se for URL HTTP do servidor de mídia, usar direto
+            if [[ "$url" =~ ^http://localhost:5000/media/ ]]; then
+                echo "$url"
+            # Se for caminho local, criar HTML temporário
+            elif [[ "$url" =~ ^/ ]]; then
                 create_video_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
                 echo "file://$TEMP_DIR/video_$$.html"
             else
@@ -1255,6 +1261,7 @@ echo ""
 echo "=== ROTACAO AUTOMATICA COM MONITORAMENTO ==="
 echo "Usando 1 janela Firefox com rotacao de URLs"
 echo "Monitorando mudanças em tabs.json a cada $CHECK_INTERVAL segundos"
+echo "Diretório de mídia: $MEDIA_DIR"
 echo "Pressione Ctrl+C para parar"
 echo ""
 
@@ -1262,6 +1269,8 @@ echo ""
 CURRENT_URL=$(get_current_url)
 CURRENT_NAME=$(get_current_name)
 echo "Iniciando com: $CURRENT_NAME"
+echo "URL usada: $CURRENT_URL"
+echo "Tipo de arquivo: $(echo "$CURRENT_URL" | grep -o "image\|video\|url" || echo "url")"
 
 firefox --kiosk "$CURRENT_URL" &
 FIREFOX_PID=$!
@@ -1358,18 +1367,32 @@ while true; do
     NEXT_NAME=$(get_current_name)
     
     echo "Trocando para: $NEXT_NAME"
+    echo "Próxima URL: $NEXT_URL"
+    echo "Verificando arquivo: $(echo "$NEXT_URL" | sed 's|http://localhost:5000/media/|/home/informa/Documents/kiosk-media/|')"
     
-    # Abrir nova URL na mesma janela
+    # Verificar se arquivo existe (para debug)
+    if [[ "$NEXT_URL" =~ ^http://localhost:5000/media/ ]]; then
+        local_file=$(echo "$NEXT_URL" | sed 's|http://localhost:5000/media/|/home/informa/Documents/kiosk-media/|')
+        if [ -f "$local_file" ]; then
+            echo "✓ Arquivo local existe: $local_file"
+        else
+            echo "✗ Arquivo local NÃO existe: $local_file"
+        fi
+    fi
+    
+    # Abrir nova URL na mesma janela (sem mostrar barra de endereço)
     echo "Mudando URL para: $NEXT_URL"
     
-    # Método: Usar xdotool para abrir nova URL
-    xdotool key ctrl+l
-    sleep 0.5
-    xdotool type "$NEXT_URL"
-    sleep 0.5
-    xdotool key Return
+    # Método: Fechar Firefox atual e abrir novo (sem mostrar transição)
+    # 1. Fechar Firefox atual
+    pkill -f firefox 2>/dev/null || true
+    sleep 1
     
-    # Aguardar carregar
+    # 2. Abrir nova URL em modo kiosk
+    firefox --kiosk "$NEXT_URL" &
+    FIREFOX_PID=$!
+    
+    # 3. Aguardar carregar
     sleep 3
 done
 
