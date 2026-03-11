@@ -196,7 +196,7 @@ import json
 import hashlib
 import sqlite3
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, send_from_directory
 from functools import wraps
 
 app = Flask(__name__)
@@ -274,7 +274,7 @@ def init_files():
         tabs = [{
             'id': 1,
             'name': 'Google',
-            'url': 'https://google.com',
+            'url': 'http://localhost:5000',
             'type': 'url',
             'duration': 30,
             'enabled': True,
@@ -405,11 +405,46 @@ def upload_file():
     file.save(filepath)
     
     log_action('upload_file', f'Arquivo {filename} enviado')
-    return jsonify({'filename': filename, 'path': filepath})
+    
+    # Retornar URL HTTP para o arquivo
+    media_url = f"http://localhost:5000/media/{filename}"
+    return jsonify({'filename': filename, 'path': filepath, 'url': media_url})
 
 @app.route('/media/<filename>')
 def media_file(filename):
-    return send_file(os.path.join(MEDIA_DIR, filename))
+    # Servir arquivos de mídia
+    return send_from_directory(MEDIA_DIR, filename)
+
+@app.route('/api/media-files')
+@login_required
+def api_media_files():
+    """Listar todos os arquivos de mídia disponíveis"""
+    try:
+        files = []
+        if os.path.exists(MEDIA_DIR):
+            for filename in os.listdir(MEDIA_DIR):
+                filepath = os.path.join(MEDIA_DIR, filename)
+                if os.path.isfile(filepath):
+                    # Obter tamanho do arquivo
+                    size = os.path.getsize(filepath)
+                    # Determinar tipo de arquivo
+                    if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                        file_type = 'image'
+                    elif filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+                        file_type = 'video'
+                    else:
+                        file_type = 'other'
+                    
+                    files.append({
+                        'filename': filename,
+                        'url': f"http://localhost:5000/media/{filename}",
+                        'type': file_type,
+                        'size': size
+                    })
+        
+        return jsonify({'files': files})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
@@ -512,7 +547,7 @@ HTML_EOF
 {% endblock %}
 HTML_EOF
 
-    # Template tabs
+    # Template tabs melhorado
     cat > "$PROJECT_DIR/templates/tabs.html" << 'HTML_EOF'
 {% extends "base.html" %}
 
@@ -539,7 +574,7 @@ HTML_EOF
                         <thead>
                             <tr>
                                 <th>Nome</th>
-                                <th>URL</th>
+                                <th>URL/Arquivo</th>
                                 <th>Tipo</th>
                                 <th>Duracao</th>
                                 <th>Status</th>
@@ -571,16 +606,26 @@ HTML_EOF
                         <input type="text" class="form-control" id="tabName" required>
                     </div>
                     <div class="mb-3">
-                        <label for="tabUrl" class="form-label">URL</label>
-                        <input type="text" class="form-control" id="tabUrl" required>
-                    </div>
-                    <div class="mb-3">
                         <label for="tabType" class="form-label">Tipo</label>
-                        <select class="form-select" id="tabType">
+                        <select class="form-select" id="tabType" onchange="toggleUrlInput()">
                             <option value="url">URL</option>
                             <option value="image">Imagem</option>
                             <option value="video">Video</option>
                         </select>
+                    </div>
+                    <div class="mb-3" id="urlInputGroup">
+                        <label for="tabUrl" class="form-label">URL</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="tabUrl" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="showMediaSelector()">
+                                <i class="fas fa-folder-open"></i> Mídia
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="fileInputGroup" style="display: none;">
+                        <label for="tabFile" class="form-label">Enviar Arquivo</label>
+                        <input type="file" class="form-control" id="tabFile" accept="image/*,video/*">
+                        <div class="form-text">Ou selecione um arquivo existente abaixo</div>
                     </div>
                     <div class="mb-3">
                         <label for="tabDuration" class="form-label">Duracao (segundos)</label>
@@ -603,10 +648,96 @@ HTML_EOF
         </div>
     </div>
 </div>
+
+<!-- Modal Seleção de Mídia -->
+<div class="modal fade" id="mediaModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Selecionar Arquivo de Mídia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row" id="mediaFiles">
+                    <!-- Carregado via JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+let mediaFiles = [];
+
+function toggleUrlInput() {
+    const type = document.getElementById('tabType').value;
+    const urlGroup = document.getElementById('urlInputGroup');
+    const fileGroup = document.getElementById('fileInputGroup');
+    
+    if (type === 'url') {
+        urlGroup.style.display = 'block';
+        fileGroup.style.display = 'none';
+    } else {
+        urlGroup.style.display = 'none';
+        fileGroup.style.display = 'block';
+        loadMediaFiles();
+    }
+}
+
+function loadMediaFiles() {
+    fetch('/api/media-files')
+        .then(response => response.json())
+        .then(data => {
+            mediaFiles = data.files;
+            displayMediaFiles();
+        });
+}
+
+function displayMediaFiles() {
+    const container = document.getElementById('mediaFiles');
+    container.innerHTML = '';
+    
+    mediaFiles.forEach(file => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4 mb-3';
+        
+        const icon = file.type === 'image' ? 'fa-image' : 'fa-video';
+        const size = (file.size / 1024).toFixed(1) + ' KB';
+        
+        col.innerHTML = `
+            <div class="card h-100 media-card" data-url="${file.url}" data-filename="${file.filename}">
+                <div class="card-body text-center">
+                    <i class="fas ${icon} fa-3x mb-2 ${file.type === 'image' ? 'text-primary' : 'text-success'}"></i>
+                    <h6 class="card-title">${file.filename}</h6>
+                    <p class="card-text">
+                        <small class="text-muted">${size}</small>
+                    </p>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    });
+    
+    // Adicionar evento de clique
+    document.querySelectorAll('.media-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const url = this.dataset.url;
+            const filename = this.dataset.filename;
+            document.getElementById('tabUrl').value = url;
+            document.getElementById('tabName').value = filename.replace(/\.[^/.]+$/, "");
+            bootstrap.Modal.getInstance(document.getElementById('mediaModal')).hide();
+        });
+    });
+}
+
+function showMediaSelector() {
+    loadMediaFiles();
+    new bootstrap.Modal(document.getElementById('mediaModal')).show();
+}
+
 function loadTabs() {
     fetch('/api/tabs')
         .then(response => response.json())
@@ -641,9 +772,32 @@ function loadTabs() {
 }
 
 function addTab() {
+    const type = document.getElementById('tabType').value;
+    let url = document.getElementById('tabUrl').value;
+    
+    // Se for arquivo, fazer upload primeiro
+    if (type !== 'url' && document.getElementById('tabFile').files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', document.getElementById('tabFile').files[0]);
+        
+        fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            url = data.url;
+            submitTab(url);
+        });
+    } else {
+        submitTab(url);
+    }
+}
+
+function submitTab(url) {
     const tab = {
         name: document.getElementById('tabName').value,
-        url: document.getElementById('tabUrl').value,
+        url: url,
         type: document.getElementById('tabType').value,
         duration: parseInt(document.getElementById('tabDuration').value),
         enabled: document.getElementById('tabEnabled').checked
