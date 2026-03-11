@@ -4,7 +4,7 @@ services:
   credivision-app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.production
     container_name: credivision-app
     environment:
       - DATA_FOLDER=/data
