@@ -160,7 +160,7 @@ install_from_zero() {
     
     # Step 5: Install Firefox and dependencies
     log_step "Instalando Firefox e dependências..."
-    apt install -y firefox xdotool python3-requests python3-watchdog notify-send xvfb x11-utils
+    apt install -y firefox xdotool python3-requests python3-watchdog libnotify-bin xvfb x11-utils
     log_info "✓ Firefox e dependências instaladas"
     
     # Step 6: Create directories
