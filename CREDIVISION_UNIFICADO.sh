@@ -1061,6 +1061,9 @@ import json, sys
 tabs = json.load(sys.stdin)
 for i, tab in enumerate(tabs):
     print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s [ID: {tab[\"id\"]}]')
+    print(f'     URL completa: \"{tab[\"url\"]}\"')
+    print(f'     Tipo: {tab[\"type\"]}')
+    print()
 "
 echo ""
 
@@ -1213,32 +1216,37 @@ get_current_url() {
     local url="${!var_url}"
     local type="${!var_type}"
     
+    echo "DEBUG: URL original = '$url'"
+    echo "DEBUG: Tipo = '$type'"
+    
     case "$type" in
-        "image")
+        "image"|"video")
             # Se for URL HTTP do servidor de mídia, usar direto
             if [[ "$url" =~ ^http://localhost:5000/media/ ]]; then
+                echo "DEBUG: Usando URL HTTP completa"
                 echo "$url"
-            # Se for caminho local, criar HTML temporário
+            # Se for caminho relativo /media/, converter para URL HTTP
+            elif [[ "$url" =~ ^/media/ ]]; then
+                local http_url="http://localhost:5000$url"
+                echo "DEBUG: Convertendo /media/ para HTTP: $http_url"
+                echo "$http_url"
+            # Se for caminho local absoluto, criar HTML temporário
             elif [[ "$url" =~ ^/ ]]; then
-                create_image_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
-                echo "file://$TEMP_DIR/image_$$.html"
+                echo "DEBUG: Criando HTML temporário para arquivo local: $url"
+                if [ "$type" = "image" ]; then
+                    create_image_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
+                    echo "file://$TEMP_DIR/image_$$.html"
+                else
+                    create_video_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
+                    echo "file://$TEMP_DIR/video_$$.html"
+                fi
             else
-                echo "$url"
-            fi
-            ;;
-        "video")
-            # Se for URL HTTP do servidor de mídia, usar direto
-            if [[ "$url" =~ ^http://localhost:5000/media/ ]]; then
-                echo "$url"
-            # Se for caminho local, criar HTML temporário
-            elif [[ "$url" =~ ^/ ]]; then
-                create_video_html "$url" "$(eval echo \$TAB_${CURRENT_INDEX}_NAME)"
-                echo "file://$TEMP_DIR/video_$$.html"
-            else
+                echo "DEBUG: Usando URL como está"
                 echo "$url"
             fi
             ;;
         *)
+            echo "DEBUG: URL normal, usando como está"
             echo "$url"
             ;;
     esac
@@ -1380,20 +1388,25 @@ while true; do
         fi
     fi
     
-    # Abrir nova URL na mesma janela (sem mostrar barra de endereço)
+    # Abrir nova URL na mesma janela (mantendo kiosk aberto)
     echo "Mudando URL para: $NEXT_URL"
     
-    # Método: Fechar Firefox atual e abrir novo (sem mostrar transição)
-    # 1. Fechar Firefox atual
-    pkill -f firefox 2>/dev/null || true
-    sleep 1
+    # Método: Usar JavaScript para mudar URL sem mostrar nada
+    # 1. Abrir console de desenvolvedor rapidamente
+    xdotool key F12
+    sleep 0.2
     
-    # 2. Abrir nova URL em modo kiosk
-    firefox --kiosk "$NEXT_URL" &
-    FIREFOX_PID=$!
+    # 2. Focar no console e executar JavaScript
+    xdotool key ctrl+shift+c  # Focar no console
+    sleep 0.2
+    xdotool type "window.location.href='$NEXT_URL';"
+    sleep 0.2
+    xdotool key Return
+    sleep 0.2
     
-    # 3. Aguardar carregar
-    sleep 3
+    # 3. Fechar console imediatamente
+    xdotool key F12
+    sleep 2
 done
 
 echo "Rotacao finalizada"
