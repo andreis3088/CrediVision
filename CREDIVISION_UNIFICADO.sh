@@ -947,7 +947,7 @@ try:
     # Verificar estrutura (lista ou objeto)
     tabs = data if isinstance(data, list) else data.get("tabs", [])
     
-    # Filtrar apenas abas ativas e ordenar por ID
+    # Filtrar apenas abas ativas E MANTER A ORDEM EXATA DO ARQUIVO
     active_tabs = []
     for tab in tabs:
         if tab.get("enabled", True):
@@ -956,11 +956,12 @@ try:
                 'name': tab.get('name', 'Sem nome'),
                 'url': tab.get('url', ''),
                 'type': tab.get('type', 'url'),
-                'duration': tab.get('duration', 30)
+                'duration': tab.get('duration', 30),
+                'original_index': len(active_tabs)  # Guardar posicao original
             })
     
-    # Ordenar por ID (ordem de criacao)
-    active_tabs.sort(key=lambda x: x['id'])
+    # NÃO ORDENAR - manter ordem exata do arquivo
+    # active_tabs.sort(key=lambda x: x['id'])  # LINHA COMENTADA
     
     # Retornar como JSON
     print(json.dumps(active_tabs))
@@ -1006,7 +1007,7 @@ restart_kiosk() {
 import json, sys
 tabs = json.load(sys.stdin)
 for i, tab in enumerate(tabs):
-    print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s')
+    print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s [ID: {tab[\"id\"]}]')
 "
     
     # Recriar arrays
@@ -1054,11 +1055,12 @@ if [ "$TABS_COUNT" -eq 0 ]; then
 fi
 
 echo "Abas ativas encontradas: $TABS_COUNT"
+echo "ORDEM EXATA DO ARQUIVO JSON:"
 echo "$TABS_JSON" | python3 -c "
 import json, sys
 tabs = json.load(sys.stdin)
 for i, tab in enumerate(tabs):
-    print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s')
+    print(f'  {i+1}. {tab[\"name\"]} - {tab[\"url\"]} - {tab[\"duration\"]}s [ID: {tab[\"id\"]}]')
 "
 echo ""
 
