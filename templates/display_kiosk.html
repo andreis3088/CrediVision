@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrediVision Kiosk</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        #kioskContainer {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #contentFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #000;
+        }
+        
+        #statusOverlay {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 9999;
+            display: none;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            z-index: 9998;
+            backdrop-filter: blur(10px);
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #00AE9D;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(220, 38, 38, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 9997;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="kioskContainer">
+        <iframe id="contentFrame" src="about:blank"></iframe>
+        
+        <div id="statusOverlay">
+            <div id="statusText">Carregando...</div>
+        </div>
+        
+        <div id="loadingOverlay">
+            <div class="spinner"></div>
+            <div>Iniciando CrediVision...</div>
+        </div>
+        
+        <div id="errorMessage" class="error-message">
+            <h3>Erro de Conexão</h3>
+            <p>Não foi possível carregar o conteúdo</p>
+            <button onclick="hideError()">OK</button>
+        </div>
+    </div>
+
+    <script>
+        let currentTabIndex = 0;
+        let tabs = [];
+        let rotationTimer = null;
+        let isLoading = false;
+        
+        // Show status briefly
+        function showStatus(message, duration = 3000) {
+            const overlay = document.getElementById('statusOverlay');
+            const text = document.getElementById('statusText');
+            text.textContent = message;
+            overlay.style.display = 'block';
+            
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, duration);
+        }
+        
+        // Hide loading overlay
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+        
+        // Show error
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.querySelector('p').textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+        
+        // Load content in iframe
+        function loadContent(url, name) {
+            if (isLoading) return;
+            isLoading = true;
+            
+            const frame = document.getElementById('contentFrame');
+            
+            // Show loading for external sites
+            if (url.startsWith('http')) {
+                showStatus(`Carregando: ${name}`, 5000);
+            }
+            
+            // Set timeout for loading
+            const loadTimeout = setTimeout(() => {
+                if (isLoading) {
+                    showError(`Não foi possível carregar: ${name}`);
+                    isLoading = false;
+                }
+            }, 15000); // 15 seconds timeout
+            
+            // Load content
+            frame.onload = function() {
+                clearTimeout(loadTimeout);
+                isLoading = false;
+                hideLoading();
+            };
+            
+            frame.onerror = function() {
+                clearTimeout(loadTimeout);
+                showError(`Erro ao carregar: ${name}`);
+                isLoading = false;
+            };
+            
+            frame.src = url;
+        }
+        
+        // Display image
+        function displayImage(url, name) {
+            const frame = document.getElementById('contentFrame');
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { 
+                            margin: 0; 
+                            padding: 0; 
+                            background: #000; 
+                            display: flex; 
+                            align-items: center; 
+                            justify-content: center; 
+                            height: 100vh; 
+                        }
+                        img { 
+                            max-width: 100%; 
+                            max-height: 100vh; 
+                            object-fit: contain; 
+                        }
+                    </style>
+                </head>
+                <body>
+                    <img src="${url}" alt="${name}">
+                </body>
+                </html>
+            `;
+            frame.srcdoc = html;
+            hideLoading();
+        }
+        
+        // Display video
+        function displayVideo(url, name) {
+            const frame = document.getElementById('contentFrame');
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { 
+                            margin: 0; 
+                            padding: 0; 
+                            background: #000; 
+                            display: flex; 
+                            align-items: center; 
+                            justify-content: center; 
+                            height: 100vh; 
+                        }
+                        video { 
+                            max-width: 100%; 
+                            max-height: 100vh; 
+                            object-fit: contain; 
+                        }
+                    </style>
+                </head>
+                <body>
+                    <video autoplay muted loop>
+                        <source src="${url}">
+                        Seu navegador não suporta vídeo.
+                    </video>
+                </body>
+                </html>
+            `;
+            frame.srcdoc = html;
+            hideLoading();
+        }
+        
+        // Rotate to next tab
+        function rotateToNextTab() {
+            if (tabs.length === 0) return;
+            
+            const tab = tabs[currentTabIndex % tabs.length];
+            currentTabIndex++;
+            
+            showStatus(`Aba: ${tab.name}`, 3000);
+            
+            if (tab.content_type === 'image') {
+                displayImage(tab.url, tab.name);
+            } else if (tab.content_type === 'video') {
+                displayVideo(tab.url, tab.name);
+            } else {
+                // URL - load directly in iframe
+                loadContent(tab.url, tab.name);
+            }
+            
+            // Schedule next rotation
+            if (rotationTimer) {
+                clearTimeout(rotationTimer);
+            }
+            rotationTimer = setTimeout(() => {
+                rotateToNextTab();
+            }, (tab.duration || 300) * 1000);
+        }
+        
+        // Fetch configuration and start rotation
+        async function startKiosk() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                tabs = data.tabs.filter(tab => tab.active !== false);
+                
+                if (tabs.length === 0) {
+                    showError('Nenhuma aba configurada');
+                    hideLoading();
+                    return;
+                }
+                
+                showStatus(`Sistema iniciado com ${tabs.length} abas`, 5000);
+                
+                // Start rotation
+                rotateToNextTab();
+                
+            } catch (error) {
+                console.error('Error fetching config:', error);
+                showError('Erro ao carregar configuração');
+                hideLoading();
+            }
+        }
+        
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            // Ctrl+Shift+R: Force refresh
+            if (event.ctrlKey && event.shiftKey && event.key === 'R') {
+                event.preventDefault();
+                location.reload();
+            }
+            
+            // Ctrl+Shift+S: Show status
+            if (event.ctrlKey && event.shiftKey && event.key === 'S') {
+                event.preventDefault();
+                showStatus(`Abas: ${tabs.length} | Atual: ${currentTabIndex}`, 5000);
+            }
+        });
+        
+        // Start on load
+        window.addEventListener('load', function() {
+            // Wait a moment before starting
+            setTimeout(() => {
+                startKiosk();
+            }, 2000);
+        });
+        
+        // Handle visibility change (pause when tab is not visible)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (rotationTimer) {
+                    clearTimeout(rotationTimer);
+                }
+            } else {
+                if (tabs.length > 0) {
+                    rotateToNextTab();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

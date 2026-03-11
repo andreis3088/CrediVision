@@ -470,6 +470,32 @@ def serve_media(filename):
     else:
         return "Arquivo não encontrado", 404
 
+@app.route('/api/update-webhook', methods=['POST'])
+@login_required
+def update_webhook():
+    """Webhook para notificar mudanças nas abas"""
+    try:
+        data = request.json or {}
+        action = data.get('action', 'update')
+        
+        # Registrar ação
+        log_action(f'webhook_{action}', f"Webhook recebido: {json.dumps(data)}")
+        
+        # Notificar atualizador automático (se estiver rodando)
+        try:
+            import requests
+            requests.post('http://localhost:5001/webhook', 
+                         json={'action': action, 'timestamp': datetime.now().isoformat()},
+                         timeout=2)
+        except:
+            pass  # Ignorar se atualizador não estiver rodando
+        
+        return jsonify({'status': 'ok', 'message': 'Webhook processado'})
+        
+    except Exception as e:
+        log_action('webhook_error', str(e))
+        return jsonify({'error': str(e)}), 500
+
 # ─── Inicialização ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':

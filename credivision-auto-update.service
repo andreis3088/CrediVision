@@ -1,0 +1,18 @@
+[Unit]
+Description=CrediVision Auto Update Service
+After=credivision-app.service
+Wants=credivision-app.service
+
+[Service]
+Type=simple
+User=informa
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/informa/.Xauthority
+ExecStart=/usr/bin/python3 /home/informa/Documentos/CrediVision/auto_update_kiosk.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
